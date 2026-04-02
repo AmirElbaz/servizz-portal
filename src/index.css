@@ -1,0 +1,152 @@
+@import "tailwindcss";
+
+@theme {
+  --color-on-secondary-container: #3c5561;
+  --color-outline-variant: #a9b4b9;
+  --color-on-primary-container: #00529b;
+  --color-on-error-container: #752121;
+  --color-surface-variant: #d9e4ea;
+  --color-inverse-on-surface: #9a9d9f;
+  --color-secondary: #49636f;
+  --color-surface-tint: #1d5fa8;
+  --color-surface-container-low: #f0f4f7;
+  --color-on-surface-variant: #566166;
+  --color-surface: #f8f9fb;
+  --color-on-primary-fixed: #003f7a;
+  --color-error-dim: #4e0309;
+  --color-background: #f8f9fb;
+  --color-error: #9f403d;
+  --color-surface-container-high: #e1e9ee;
+  --color-tertiary-dim: #50516c;
+  --color-surface-container-highest: #d9e4ea;
+  --color-on-tertiary-fixed-variant: #555671;
+  --color-on-tertiary-fixed: #393953;
+  --color-outline: #717c82;
+  --color-surface-dim: #cfdce3;
+  --color-secondary-fixed: #cbe7f5;
+  --color-primary-container: #d5e3ff;
+  --color-secondary-fixed-dim: #bdd9e6;
+  --color-on-surface: #2a3439;
+  --color-on-tertiary-container: #4b4c67;
+  --color-on-background: #2a3439;
+  --color-tertiary-fixed: #dbdafb;
+  --color-surface-bright: #f8f9fb;
+  --color-on-error: #fff7f6;
+  --color-surface-container: #e8eff3;
+  --color-primary-fixed-dim: #bed6ff;
+  --color-on-primary: #f6f7ff;
+  --color-on-secondary-fixed-variant: #455f6b;
+  --color-inverse-primary: #77adfc;
+  --color-primary: #1d5fa8;
+  --color-primary-fixed: #d5e3ff;
+  --color-secondary-dim: #3d5762;
+  --color-on-secondary: #f2faff;
+  --color-surface-container-lowest: #ffffff;
+  --color-primary-dim: #01529b;
+  --color-tertiary-container: #dbdafb;
+  --color-secondary-container: #cbe7f5;
+  --color-error-container: #fe8983;
+  --color-on-secondary-fixed: #29434e;
+  --color-tertiary: #5c5d78;
+  --color-on-primary-fixed-variant: #185ca5;
+  --color-inverse-surface: #0b0f10;
+  --color-tertiary-fixed-dim: #cdccec;
+  --color-on-tertiary: #fbf7ff;
+
+  --font-headline: "Public Sans", sans-serif;
+  --font-body: "Inter", sans-serif;
+  --font-label: "Inter", sans-serif;
+}
+
+@layer base {
+  body {
+    font-family: var(--font-body);
+    margin: 0;
+  }
+
+  h1, h2, h3, .font-headline {
+    font-family: var(--font-headline);
+  }
+}
+
+@layer utilities {
+  .editorial-shadow {
+    box-shadow: 0 0 40px 0 rgba(42, 52, 57, 0.06);
+  }
+
+  .glass-panel {
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(20px);
+  }
+
+  .brand-gradient {
+    background: linear-gradient(135deg, #1d5fa8 0%, #01529b 100%);
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Project-scoped accent color utilities */
+  .text-accent {
+    color: var(--accent);
+  }
+
+  .bg-accent {
+    background-color: var(--accent);
+  }
+
+  .bg-accent-10 {
+    background-color: color-mix(in srgb, var(--accent) 10%, transparent);
+  }
+
+  .bg-accent-5 {
+    background-color: color-mix(in srgb, var(--accent) 5%, transparent);
+  }
+
+  .border-accent {
+    border-color: var(--accent);
+  }
+
+  .border-accent-50 {
+    border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+  }
+
+  .border-accent-20 {
+    border-color: color-mix(in srgb, var(--accent) 20%, transparent);
+  }
+
+  .hover\:border-accent-50:hover {
+    border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+  }
+
+  .hover\:bg-accent:hover {
+    background-color: var(--accent);
+  }
+
+  .hover\:bg-accent-10:hover {
+    background-color: color-mix(in srgb, var(--accent) 10%, transparent);
+  }
+
+  .group-hover\:bg-accent:where(.group:hover *) {
+    background-color: var(--accent);
+  }
+
+  .group-hover\:text-accent:where(.group:hover *) {
+    color: var(--accent);
+  }
+
+  .accent-gradient {
+    background: linear-gradient(135deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 80%, black) 100%);
+  }
+}
+
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  vertical-align: middle;
+}
