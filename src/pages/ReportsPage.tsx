@@ -43,13 +43,8 @@ export default function ReportsPage() {
               backgroundSize: "50px 50px",
             }}
           />
-          <div className="absolute top-6 right-10 pointer-events-none">
-            <span
-              className="material-symbols-outlined text-white/[0.08]"
-              style={{ fontSize: "120px", fontVariationSettings: "'FILL' 1" }}
-            >
-              {project.icon}
-            </span>
+          <div className="absolute top-8 right-12 pointer-events-none opacity-[0.12]">
+            <img src={project.logo} alt="" className="h-28 lg:h-36 object-contain brightness-0 invert" />
           </div>
 
           <div className="relative z-10">
@@ -118,16 +113,6 @@ export default function ReportsPage() {
                 Fiscal Year 2024
               </p>
             </div>
-            <button
-              className="bg-accent text-white px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 hover:opacity-90 transition-all shadow-lg group"
-              style={{ boxShadow: `0 4px 20px ${project.color}25` }}
-            >
-              <span className="material-symbols-outlined text-[18px]">download</span>
-              Export
-              <span className="material-symbols-outlined text-[14px] group-hover:translate-x-0.5 transition-transform">
-                arrow_forward
-              </span>
-            </button>
           </div>
 
           <div className="space-y-3">
@@ -171,8 +156,9 @@ export default function ReportsPage() {
                     </div>
                   </div>
                 </div>
-                <button className="px-4 py-2 rounded-xl text-xs font-bold text-accent bg-accent-5 hover:bg-accent-10 transition-colors uppercase tracking-wider">
-                  Download
+                <button className="px-4 py-2 rounded-xl text-xs font-bold text-accent bg-accent-5 hover:bg-accent-10 transition-colors uppercase tracking-wider flex items-center gap-1.5">
+                  View Report
+                  <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
                 </button>
               </div>
             ))}

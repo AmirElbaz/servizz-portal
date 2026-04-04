@@ -1,6 +1,14 @@
 import { Link } from "react-router-dom";
+import { projects } from "../../data/projects";
 
-export default function TopNavBar() {
+interface TopNavBarProps {
+  onPortalsClick?: () => void;
+  onServizzClick?: () => void;
+}
+
+export default function TopNavBar({ onPortalsClick, onServizzClick }: TopNavBarProps) {
+  const lastProject = projects[0];
+
   return (
     <header className="fixed top-5 left-1/2 -translate-x-1/2 z-50 w-[94%] max-w-6xl">
       <div className="glass-nav rounded-2xl px-6 py-3 flex justify-between items-center shadow-lg shadow-black/[0.04]">
@@ -8,28 +16,40 @@ export default function TopNavBar() {
           to="/dashboard"
           className="text-lg font-extrabold tracking-tighter text-on-surface font-headline no-underline"
         >
-          Centercom<span className="text-primary"> | </span>Servizz
+          Centercom<span className="text-primary"> | </span>Servizz.gov
         </Link>
 
         <nav className="hidden md:flex items-center gap-1">
-          <Link
-            to="/dashboard"
-            className="px-4 py-1.5 text-sm font-semibold text-primary bg-primary/8 rounded-lg transition-colors no-underline"
-          >
-            Portals
-          </Link>
-          <a
-            href="#"
-            className="px-4 py-1.5 text-sm font-medium text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high rounded-lg transition-colors no-underline"
-          >
-            Services
-          </a>
-          <a
-            href="#"
-            className="px-4 py-1.5 text-sm font-medium text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high rounded-lg transition-colors no-underline"
-          >
-            Directories
-          </a>
+          {onPortalsClick ? (
+            <button
+              onClick={onPortalsClick}
+              className="px-4 py-1.5 text-sm font-semibold text-primary bg-primary/8 rounded-lg transition-colors"
+            >
+              {lastProject.name}
+            </button>
+          ) : (
+            <Link
+              to="/dashboard"
+              className="px-4 py-1.5 text-sm font-semibold text-primary bg-primary/8 rounded-lg transition-colors no-underline"
+            >
+              {lastProject.name}
+            </Link>
+          )}
+          {onServizzClick ? (
+            <button
+              onClick={onServizzClick}
+              className="px-4 py-1.5 text-sm font-medium text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high rounded-lg transition-colors"
+            >
+              Servizz.gov
+            </button>
+          ) : (
+            <Link
+              to="/dashboard"
+              className="px-4 py-1.5 text-sm font-medium text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high rounded-lg transition-colors no-underline"
+            >
+              Servizz.gov
+            </Link>
+          )}
         </nav>
 
         <div className="flex items-center gap-3">

@@ -39,14 +39,9 @@ export default function ProjectDetailPage() {
               backgroundSize: "50px 50px",
             }}
           />
-          {/* Large faded icon */}
-          <div className="absolute top-6 right-10 pointer-events-none">
-            <span
-              className="material-symbols-outlined text-white/[0.08]"
-              style={{ fontSize: "140px", fontVariationSettings: "'FILL' 1" }}
-            >
-              {project.icon}
-            </span>
+          {/* Large faded logo */}
+          <div className="absolute top-8 right-12 pointer-events-none opacity-[0.12]">
+            <img src={project.logo} alt="" className="h-32 lg:h-40 object-contain brightness-0 invert" />
           </div>
 
           <div className="relative z-10">

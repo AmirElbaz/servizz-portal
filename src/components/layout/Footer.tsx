@@ -7,7 +7,7 @@ export default function Footer({ variant = "dashboard" }: FooterProps) {
     return (
       <footer className="absolute bottom-0 w-full py-6 flex justify-between items-center px-10 z-10">
         <span className="text-[11px] tracking-wide text-white/30 font-medium">
-          &copy; 2024 Centercom &amp; Servizz
+          &copy; 2024 Centercom &amp; Servizz.gov
         </span>
         <div className="flex gap-6">
           {["Privacy", "Terms", "Accessibility"].map((link) => (
@@ -33,7 +33,7 @@ export default function Footer({ variant = "dashboard" }: FooterProps) {
           </span>
         </div>
         <span className="text-[11px] font-semibold tracking-wider uppercase text-on-surface-variant/60">
-          &copy; 2024 Centercom &amp; Servizz. Unified Gateway.
+          &copy; 2024 Centercom &amp; Servizz.gov. Unified Gateway.
         </span>
       </div>
       <div className="flex gap-8 items-center">

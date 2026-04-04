@@ -36,7 +36,7 @@ export default function ForgotPasswordPage() {
         </div>
         <div>
           <div className="text-on-surface font-headline font-bold text-sm tracking-tight">
-            Centercom | Servizz
+            Centercom | Servizz.gov
           </div>
           <div className="text-on-surface-variant/50 text-[10px] tracking-[0.2em] uppercase font-medium">
             Unified Portal
@@ -100,7 +100,7 @@ export default function ForgotPasswordPage() {
                 </div>
                 <p className="text-[11px] text-on-surface-variant/40 mt-2 px-1 flex items-center gap-1.5">
                   <span className="material-symbols-outlined text-[13px]">info</span>
-                  Ensure this is the email associated with your Servizz account.
+                  Ensure this is the email associated with your Servizz.gov account.
                 </p>
               </div>
 
@@ -159,7 +159,7 @@ export default function ForgotPasswordPage() {
       {/* ── Footer ── */}
       <footer className="absolute bottom-0 w-full py-6 flex justify-between items-center px-10 z-10">
         <span className="text-[11px] tracking-wide text-on-surface-variant/30 font-medium">
-          &copy; 2024 Centercom &amp; Servizz
+          &copy; 2024 Centercom &amp; Servizz.gov
         </span>
         <div className="flex gap-6">
           {["Privacy", "Terms", "Accessibility"].map((link) => (

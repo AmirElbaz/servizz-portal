@@ -1,27 +1,35 @@
-import { type FormEvent, useRef } from "react";
+import { type FormEvent, useState, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import Footer from "../components/layout/Footer";
+
+type LoginMode = "credentials" | "bankcode";
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const [mode, setMode] = useState<LoginMode>("credentials");
   const pinRefs = [
     useRef<HTMLInputElement>(null),
     useRef<HTMLInputElement>(null),
     useRef<HTMLInputElement>(null),
     useRef<HTMLInputElement>(null),
   ];
+  const codeRefs = [
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
+  ];
 
-  function handlePinInput(index: number, value: string) {
+  function handleDigitInput(refs: React.RefObject<HTMLInputElement | null>[], index: number, value: string) {
     if (value.length === 1 && index < 3) {
-      pinRefs[index + 1].current?.focus();
+      refs[index + 1].current?.focus();
     }
   }
 
-  function handlePinKeyDown(index: number, e: React.KeyboardEvent) {
+  function handleDigitKeyDown(refs: React.RefObject<HTMLInputElement | null>[], index: number, e: React.KeyboardEvent) {
     if (e.key === "Backspace" && index > 0) {
-      const current = pinRefs[index].current;
+      const current = refs[index].current;
       if (current && current.value === "") {
-        pinRefs[index - 1].current?.focus();
+        refs[index - 1].current?.focus();
       }
     }
   }
@@ -62,7 +70,7 @@ export default function LoginPage() {
         </div>
         <div>
           <div className="text-on-surface font-headline font-bold text-sm tracking-tight">
-            Centercom | Servizz
+            Centercom | Servizz.gov
           </div>
           <div className="text-on-surface-variant/50 text-[10px] tracking-[0.2em] uppercase font-medium">
             Unified Portal
@@ -73,12 +81,11 @@ export default function LoginPage() {
       {/* ── Login Card ── */}
       <div className="relative z-10 w-full max-w-md mx-4">
         <div className="bg-white rounded-3xl p-10 relative overflow-hidden shadow-[0_20px_60px_-15px_rgba(0,0,0,0.08)] border border-on-surface-variant/5">
-          {/* Card inner glow */}
           <div className="absolute -top-20 -right-20 w-40 h-40 bg-primary/5 rounded-full blur-[60px] pointer-events-none" />
 
           <div className="relative">
             {/* Header */}
-            <div className="mb-8">
+            <div className="mb-6">
               <h1 className="text-3xl font-extrabold text-on-surface font-headline tracking-tight mb-2">
                 Welcome back.
               </h1>
@@ -87,80 +94,142 @@ export default function LoginPage() {
               </p>
             </div>
 
+            {/* ── Tab Switcher ── */}
+            <div className="grid grid-cols-2 gap-2 mb-8">
+              <button
+                onClick={() => setMode("credentials")}
+                className={`flex flex-col items-center gap-1.5 py-3.5 rounded-xl text-sm font-semibold transition-all ${
+                  mode === "credentials"
+                    ? "bg-primary/8 text-primary border-2 border-primary/20"
+                    : "bg-surface-container-high/40 text-on-surface-variant/50 border-2 border-transparent hover:bg-surface-container-high/70"
+                }`}
+              >
+                <span className="material-symbols-outlined text-[22px]" style={mode === "credentials" ? { fontVariationSettings: "'FILL' 1" } : undefined}>
+                  passkey
+                </span>
+                Username &amp; Password
+              </button>
+              <button
+                onClick={() => setMode("bankcode")}
+                className={`flex flex-col items-center gap-1.5 py-3.5 rounded-xl text-sm font-semibold transition-all ${
+                  mode === "bankcode"
+                    ? "bg-primary/8 text-primary border-2 border-primary/20"
+                    : "bg-surface-container-high/40 text-on-surface-variant/50 border-2 border-transparent hover:bg-surface-container-high/70"
+                }`}
+              >
+                <span className="material-symbols-outlined text-[22px]" style={mode === "bankcode" ? { fontVariationSettings: "'FILL' 1" } : undefined}>
+                  pin
+                </span>
+                 PIN Code
+              </button>
+            </div>
+
             <form className="space-y-5" onSubmit={handleSubmit}>
-              {/* Username */}
-              <div className="space-y-2">
-                <label className="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/60 block">
-                  Username
-                </label>
-                <div className="relative group">
-                  <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/30 group-focus-within:text-primary transition-colors text-[20px]">
-                    person
-                  </span>
-                  <input
-                    className="w-full pl-12 pr-4 py-3.5 bg-surface-container-high/60 rounded-xl border border-on-surface-variant/8 text-on-surface placeholder:text-on-surface-variant/30 font-medium text-sm focus:outline-none focus:border-primary/30 focus:bg-white focus:shadow-[0_0_20px_rgba(29,95,168,0.08)] transition-all"
-                    placeholder="Enter your ID or email"
-                    type="text"
-                  />
-                </div>
-              </div>
+              {/* Fixed-height form area so card doesn't jump */}
+              <div className="min-h-[290px]">
+              {mode === "credentials" ? (
+                <div className="space-y-5">
+                  {/* Username */}
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/60 block">
+                      Username
+                    </label>
+                    <div className="relative group">
+                      <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/30 group-focus-within:text-primary transition-colors text-[20px]">
+                        person
+                      </span>
+                      <input
+                        className="w-full pl-12 pr-4 py-3.5 bg-surface-container-high/60 rounded-xl border border-on-surface-variant/8 text-on-surface placeholder:text-on-surface-variant/30 font-medium text-sm focus:outline-none focus:border-primary/30 focus:bg-white focus:shadow-[0_0_20px_rgba(29,95,168,0.08)] transition-all"
+                        placeholder="Enter your ID or email"
+                        type="text"
+                      />
+                    </div>
+                  </div>
 
-              {/* Password */}
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <label className="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/60 block">
-                    Password
-                  </label>
-                  <Link
-                    to="/forgot-password"
-                    className="text-[11px] font-semibold text-primary hover:text-primary-dim transition-colors"
-                  >
-                    Forgot?
-                  </Link>
-                </div>
-                <div className="relative group">
-                  <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/30 group-focus-within:text-primary transition-colors text-[20px]">
-                    lock
-                  </span>
-                  <input
-                    className="w-full pl-12 pr-12 py-3.5 bg-surface-container-high/60 rounded-xl border border-on-surface-variant/8 text-on-surface placeholder:text-on-surface-variant/30 font-medium text-sm focus:outline-none focus:border-primary/30 focus:bg-white focus:shadow-[0_0_20px_rgba(29,95,168,0.08)] transition-all"
-                    placeholder="••••••••"
-                    type="password"
-                  />
-                  <button
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant/30 hover:text-on-surface-variant transition-colors"
-                    type="button"
-                  >
-                    <span className="material-symbols-outlined text-[20px]">
-                      visibility
-                    </span>
-                  </button>
-                </div>
-              </div>
+                  {/* Password */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <label className="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/60 block">
+                        Password
+                      </label>
+                      <Link
+                        to="/forgot-password"
+                        className="text-[11px] font-semibold text-primary hover:text-primary-dim transition-colors"
+                      >
+                        Forgot?
+                      </Link>
+                    </div>
+                    <div className="relative group">
+                      <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/30 group-focus-within:text-primary transition-colors text-[20px]">
+                        lock
+                      </span>
+                      <input
+                        className="w-full pl-12 pr-12 py-3.5 bg-surface-container-high/60 rounded-xl border border-on-surface-variant/8 text-on-surface placeholder:text-on-surface-variant/30 font-medium text-sm focus:outline-none focus:border-primary/30 focus:bg-white focus:shadow-[0_0_20px_rgba(29,95,168,0.08)] transition-all"
+                        placeholder="••••••••"
+                        type="password"
+                      />
+                      <button
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant/30 hover:text-on-surface-variant transition-colors"
+                        type="button"
+                      >
+                        <span className="material-symbols-outlined text-[20px]">visibility</span>
+                      </button>
+                    </div>
+                  </div>
 
-              {/* PIN */}
-              <div className="space-y-3 pt-1">
-                <div className="flex items-center gap-3">
-                  <div className="h-px flex-grow bg-on-surface-variant/8" />
-                  <span className="text-[10px] font-bold text-on-surface-variant/35 uppercase tracking-[0.15em]">
-                    Security PIN
-                  </span>
-                  <div className="h-px flex-grow bg-on-surface-variant/8" />
+                  {/* PIN */}
+                  <div className="space-y-3 pt-1">
+                    <div className="flex items-center gap-3">
+                      <div className="h-px flex-grow bg-on-surface-variant/8" />
+                      <span className="text-[10px] font-bold text-on-surface-variant/35 uppercase tracking-[0.15em]">
+                        Security PIN
+                      </span>
+                      <div className="h-px flex-grow bg-on-surface-variant/8" />
+                    </div>
+                    <div className="flex gap-3 justify-between">
+                      {pinRefs.map((ref, i) => (
+                        <input
+                          key={i}
+                          ref={ref}
+                          className="w-14 h-14 text-center text-xl font-bold bg-surface-container-high/60 rounded-xl border border-on-surface-variant/8 text-primary placeholder:text-on-surface-variant/20 focus:outline-none focus:border-primary/30 focus:bg-white focus:shadow-[0_0_20px_rgba(29,95,168,0.08)] transition-all"
+                          maxLength={1}
+                          placeholder="•"
+                          type="password"
+                          onChange={(e) => handleDigitInput(pinRefs, i, e.target.value)}
+                          onKeyDown={(e) => handleDigitKeyDown(pinRefs, i, e)}
+                        />
+                      ))}
+                    </div>
+                  </div>
                 </div>
-                <div className="flex gap-3 justify-between">
-                  {pinRefs.map((ref, i) => (
-                    <input
-                      key={i}
-                      ref={ref}
-                      className="w-14 h-14 text-center text-xl font-bold bg-surface-container-high/60 rounded-xl border border-on-surface-variant/8 text-primary placeholder:text-on-surface-variant/20 focus:outline-none focus:border-primary/30 focus:bg-white focus:shadow-[0_0_20px_rgba(29,95,168,0.08)] transition-all"
-                      maxLength={1}
-                      placeholder="•"
-                      type="password"
-                      onChange={(e) => handlePinInput(i, e.target.value)}
-                      onKeyDown={(e) => handlePinKeyDown(i, e)}
-                    />
-                  ))}
+              ) : (
+                <div className="space-y-5">
+                  {/* 4-Digit PIN Code */}
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/60 block">
+                      4-Digit PIN Code
+                    </label>
+                    <p className="text-[11px] text-on-surface-variant/40 px-1 flex items-center gap-1.5 mb-3">
+                      <span className="material-symbols-outlined text-[13px]">info</span>
+                      Enter the 4-digit PIN code provided by your bank
+                    </p>
+                    <div className="flex gap-4 justify-center">
+                      {codeRefs.map((ref, i) => (
+                        <input
+                          key={i}
+                          ref={ref}
+                          className="w-16 h-16 text-center text-2xl font-bold bg-surface-container-high/60 rounded-xl border border-on-surface-variant/8 text-primary placeholder:text-on-surface-variant/20 focus:outline-none focus:border-primary/30 focus:bg-white focus:shadow-[0_0_20px_rgba(29,95,168,0.08)] transition-all"
+                          maxLength={1}
+                          placeholder="•"
+                          type="password"
+                          onChange={(e) => handleDigitInput(codeRefs, i, e.target.value)}
+                          onKeyDown={(e) => handleDigitKeyDown(codeRefs, i, e)}
+                        />
+                      ))}
+                    </div>
+                  </div>
                 </div>
+              )}
               </div>
 
               {/* Submit */}
@@ -187,39 +256,23 @@ export default function LoginPage() {
 
             {/* Trust Badges */}
             <div className="mt-8 pt-6 border-t border-on-surface-variant/8 flex justify-center gap-8">
-              <div className="flex items-center gap-2">
-                <span
-                  className="material-symbols-outlined text-primary/50 text-[18px]"
-                  style={{ fontVariationSettings: "'FILL' 1" }}
-                >
-                  verified_user
-                </span>
-                <span className="text-[10px] text-on-surface-variant/40 font-medium uppercase tracking-wider">
-                  Trusted
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span
-                  className="material-symbols-outlined text-primary/50 text-[18px]"
-                  style={{ fontVariationSettings: "'FILL' 1" }}
-                >
-                  encrypted
-                </span>
-                <span className="text-[10px] text-on-surface-variant/40 font-medium uppercase tracking-wider">
-                  Encrypted
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span
-                  className="material-symbols-outlined text-primary/50 text-[18px]"
-                  style={{ fontVariationSettings: "'FILL' 1" }}
-                >
-                  shield
-                </span>
-                <span className="text-[10px] text-on-surface-variant/40 font-medium uppercase tracking-wider">
-                  ISO 27001
-                </span>
-              </div>
+              {[
+                { icon: "verified_user", label: "Trusted" },
+                { icon: "encrypted", label: "Encrypted" },
+                { icon: "shield", label: "ISO 27001" },
+              ].map((b) => (
+                <div key={b.label} className="flex items-center gap-2">
+                  <span
+                    className="material-symbols-outlined text-primary/50 text-[18px]"
+                    style={{ fontVariationSettings: "'FILL' 1" }}
+                  >
+                    {b.icon}
+                  </span>
+                  <span className="text-[10px] text-on-surface-variant/40 font-medium uppercase tracking-wider">
+                    {b.label}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -228,7 +281,7 @@ export default function LoginPage() {
       {/* ── Footer ── */}
       <footer className="absolute bottom-0 w-full py-6 flex justify-between items-center px-10 z-10">
         <span className="text-[11px] tracking-wide text-on-surface-variant/30 font-medium">
-          &copy; 2024 Centercom &amp; Servizz
+          &copy; 2024 Centercom &amp; Servizz.gov
         </span>
         <div className="flex gap-6">
           {["Privacy", "Terms", "Accessibility"].map((link) => (

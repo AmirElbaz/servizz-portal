@@ -5,6 +5,7 @@ export interface Project {
   description: string;
   fullDescription: string;
   icon: string;
+  logo: string;
   color: string;
   hoverBorderColor: string;
 }
@@ -18,6 +19,7 @@ export const projects: Project[] = [
     fullDescription:
       "The Department of Social Security initiative is a strategic digital transformation designed to consolidate social security services into a single, user-centric ecosystem for simplified benefit management.",
     icon: "security",
+    logo: "/logos/DSS.png",
     color: "#1d5fa8",
     hoverBorderColor: "hover:border-[#1d5fa8]/40",
   },
@@ -29,6 +31,7 @@ export const projects: Project[] = [
     fullDescription:
       "The Inland Revenue Department portal centralizes taxation and fiscal management services, providing citizens and businesses with streamlined access to filing, payments, and compliance resources.",
     icon: "payments",
+    logo: "/logos/IRD.png",
     color: "#9f403d",
     hoverBorderColor: "hover:border-[#9f403d]/40",
   },
@@ -40,6 +43,7 @@ export const projects: Project[] = [
     fullDescription:
       "Jobsplus is the national employment agency portal enabling workforce registration, job matching, training programme enrolment, and labour market analytics across all sectors.",
     icon: "work",
+    logo: "/logos/Job+.png",
     color: "#2563eb",
     hoverBorderColor: "hover:border-blue-600/40",
   },
@@ -51,6 +55,7 @@ export const projects: Project[] = [
     fullDescription:
       "Servizz.gov is the single-stop service hub providing citizens with unified access to government services, applications, and digital resources through one streamlined interface.",
     icon: "hub",
+    logo: "/logos/BNF.png",
     color: "#5c5d78",
     hoverBorderColor: "hover:border-[#5c5d78]/40",
   },
@@ -62,6 +67,7 @@ export const projects: Project[] = [
     fullDescription:
       "Transport Malta oversees all land, sea, and air transport licensing, permitting, and infrastructure planning, delivering integrated mobility services to citizens and operators.",
     icon: "directions_car",
+    logo: "/logos/TM.png",
     color: "#15803d",
     hoverBorderColor: "hover:border-green-700/40",
   },
@@ -73,6 +79,7 @@ export const projects: Project[] = [
     fullDescription:
       "Enemalta manages the national energy grid, electricity generation, and distribution infrastructure, ensuring reliable power supply and sustainable energy transition programmes.",
     icon: "bolt",
+    logo: "/logos/Enemalta.png",
     color: "#ea580c",
     hoverBorderColor: "hover:border-orange-600/40",
   },
@@ -84,6 +91,7 @@ export const projects: Project[] = [
     fullDescription:
       "Identita is the national identity management agency responsible for identity cards, passport issuance, civil registration, and secure digital identity verification services.",
     icon: "badge",
+    logo: "/logos/Identita.png",
     color: "#7e22ce",
     hoverBorderColor: "hover:border-purple-700/40",
   },
@@ -95,6 +103,7 @@ export const projects: Project[] = [
     fullDescription:
       "The VAT Department portal enables businesses to manage value-added tax registration, filing, payments, and compliance tracking through a secure digital interface.",
     icon: "receipt_long",
+    logo: "/logos/VAT.png",
     color: "#1e293b",
     hoverBorderColor: "hover:border-slate-800/40",
   },
@@ -106,6 +115,7 @@ export const projects: Project[] = [
     fullDescription:
       "The Ministry for Education, Youth and Research portal provides access to scholarships, examination management, student services, and educational institution coordination.",
     icon: "school",
+    logo: "/logos/MEYR.png",
     color: "#be185d",
     hoverBorderColor: "hover:border-pink-700/40",
   },
@@ -117,6 +127,7 @@ export const projects: Project[] = [
     fullDescription:
       "The Building and Construction Authority manages construction permits, building safety inspections, compliance certification, and the national building registry.",
     icon: "construction",
+    logo: "/logos/BCA.png",
     color: "#f59e0b",
     hoverBorderColor: "hover:border-amber-500/40",
   },
@@ -128,6 +139,7 @@ export const projects: Project[] = [
     fullDescription:
       "The Active Ageing and Community Care agency coordinates elderly care programmes, community support services, home care, and social integration initiatives for senior citizens.",
     icon: "family_restroom",
+    logo: "/logos/AACC.png",
     color: "#155e75",
     hoverBorderColor: "hover:border-cyan-800/40",
   },
@@ -139,6 +151,7 @@ export const projects: Project[] = [
     fullDescription:
       "The Animal Welfare division manages veterinary services, animal protection reporting, licensing of pet ownership, and enforcement of animal welfare regulations.",
     icon: "pets",
+    logo: "/logos/Animal Welfare.png",
     color: "#475569",
     hoverBorderColor: "hover:border-slate-600/40",
   },
@@ -150,6 +163,7 @@ export const projects: Project[] = [
     fullDescription:
       "Malta Enterprise is the national economic development agency providing business grants, investment incentives, innovation funding, and enterprise support programmes.",
     icon: "business",
+    logo: "/logos/ME.png",
     color: "#3730a3",
     hoverBorderColor: "hover:border-indigo-800/40",
   },
@@ -161,6 +175,7 @@ export const projects: Project[] = [
     fullDescription:
       "The Regulator for Energy and Water Services oversees utility regulation, consumer protection, renewable energy certification, and water quality management.",
     icon: "eco",
+    logo: "/logos/REWS.png",
     color: "#115e59",
     hoverBorderColor: "hover:border-teal-800/40",
   },
