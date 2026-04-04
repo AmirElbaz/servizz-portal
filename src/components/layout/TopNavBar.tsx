@@ -2,55 +2,51 @@ import { Link } from "react-router-dom";
 
 export default function TopNavBar() {
   return (
-    <header className="bg-white/90 backdrop-blur-xl fixed top-0 w-full z-50 flex justify-between items-center px-8 h-16 border-b border-slate-100">
-      <div className="flex items-center gap-8">
+    <header className="fixed top-5 left-1/2 -translate-x-1/2 z-50 w-[94%] max-w-6xl">
+      <div className="glass-nav rounded-2xl px-6 py-3 flex justify-between items-center shadow-lg shadow-black/[0.04]">
         <Link
           to="/dashboard"
-          className="text-xl font-bold tracking-tighter text-slate-900 font-headline"
+          className="text-lg font-extrabold tracking-tighter text-on-surface font-headline no-underline"
         >
-          Centercom | Servizz
+          Centercom<span className="text-primary"> | </span>Servizz
         </Link>
-        <nav className="hidden md:flex items-center gap-6">
+
+        <nav className="hidden md:flex items-center gap-1">
           <Link
             to="/dashboard"
-            className="text-primary font-semibold border-b-2 border-primary py-5 transition-colors"
+            className="px-4 py-1.5 text-sm font-semibold text-primary bg-primary/8 rounded-lg transition-colors no-underline"
           >
             Portals
           </Link>
           <a
             href="#"
-            className="text-slate-600 hover:text-slate-900 py-5 transition-colors"
+            className="px-4 py-1.5 text-sm font-medium text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high rounded-lg transition-colors no-underline"
           >
             Services
           </a>
           <a
             href="#"
-            className="text-slate-600 hover:text-slate-900 py-5 transition-colors"
+            className="px-4 py-1.5 text-sm font-medium text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high rounded-lg transition-colors no-underline"
           >
             Directories
           </a>
         </nav>
-      </div>
-      <div className="flex items-center gap-4">
-        <div className="relative hidden sm:block">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm">
-            search
-          </span>
-          <input
-            className="bg-surface-container-high border-none rounded-full pl-10 pr-4 py-1.5 text-sm w-64 focus:ring-2 focus:ring-primary/20 focus:outline-none"
-            placeholder="Search services..."
-            type="text"
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <button className="p-2 hover:bg-slate-100 rounded-full transition-colors opacity-80">
-            <span className="material-symbols-outlined text-on-surface-variant">
-              notifications
+
+        <div className="flex items-center gap-3">
+          <button className="p-2 hover:bg-surface-container-high rounded-xl transition-colors">
+            <span className="material-symbols-outlined text-on-surface-variant text-[20px]">
+              search
             </span>
           </button>
-          <div className="w-8 h-8 rounded-full bg-surface-container overflow-hidden ml-2 ring-1 ring-outline-variant/20 flex items-center justify-center">
-            <span className="material-symbols-outlined text-on-surface-variant text-lg">
-              account_circle
+          <button className="p-2 hover:bg-surface-container-high rounded-xl transition-colors relative">
+            <span className="material-symbols-outlined text-on-surface-variant text-[20px]">
+              notifications
+            </span>
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-primary rounded-full"></span>
+          </button>
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-primary-dim flex items-center justify-center ml-1">
+            <span className="material-symbols-outlined text-white text-[18px]">
+              person
             </span>
           </div>
         </div>

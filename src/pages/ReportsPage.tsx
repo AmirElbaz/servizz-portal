@@ -14,7 +14,7 @@ export default function ReportsPage() {
 
   if (!project || !selectedDept) {
     return (
-      <DashboardLayout showLogout>
+      <DashboardLayout>
         <div className="flex items-center justify-center h-64">
           <p className="text-on-surface-variant text-lg">Not found.</p>
         </div>
@@ -23,113 +23,127 @@ export default function ReportsPage() {
   }
 
   return (
-    <DashboardLayout showLogout>
+    <DashboardLayout>
       <div style={{ "--accent": project.color } as React.CSSProperties}>
-        {/* Header Section */}
-        <header className="mb-12">
-          <nav className="flex items-center gap-2 mb-6 text-[10px] font-bold text-accent uppercase tracking-widest">
-            <Link to="/dashboard" className="hover:underline">
-              Portals
-            </Link>
-            <span className="material-symbols-outlined text-xs">
-              chevron_right
-            </span>
-            <Link to={`/project/${projectId}`} className="hover:underline">
-              {project.name}
-            </Link>
-          </nav>
-          <h1 className="text-4xl lg:text-6xl font-extrabold tracking-tighter text-on-surface mb-6 leading-none font-headline">
-            {project.name}{" "}
-            <span className="text-accent">Portal</span>
-          </h1>
-          <div className="max-w-2xl">
-            <p className="text-lg text-on-surface-variant font-body leading-relaxed">
-              {project.fullDescription}
-            </p>
+        {/* ── Hero Banner ── */}
+        <section
+          className="relative overflow-hidden rounded-3xl mb-12 px-10 lg:px-16 py-12 lg:py-16"
+          style={{
+            background: `linear-gradient(135deg, ${project.color} 0%, color-mix(in srgb, ${project.color} 70%, #000) 100%)`,
+          }}
+        >
+          <div className="absolute inset-0 pointer-events-none overflow-hidden">
+            <div className="absolute -top-[30%] -right-[15%] w-[50%] h-[70%] rounded-full bg-white/[0.07] blur-[100px]" />
           </div>
-        </header>
+          <div
+            className="absolute inset-0 opacity-[0.04]"
+            style={{
+              backgroundImage:
+                "linear-gradient(rgba(255,255,255,.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.15) 1px, transparent 1px)",
+              backgroundSize: "50px 50px",
+            }}
+          />
+          <div className="absolute top-6 right-10 pointer-events-none">
+            <span
+              className="material-symbols-outlined text-white/[0.08]"
+              style={{ fontSize: "120px", fontVariationSettings: "'FILL' 1" }}
+            >
+              {project.icon}
+            </span>
+          </div>
 
-        {/* Department Grid */}
-        <section className="mb-16">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="relative z-10">
+            <nav className="flex items-center gap-2 mb-5 text-[10px] font-bold text-white/40 uppercase tracking-[0.2em]">
+              <Link to="/dashboard" className="hover:text-white/70 transition-colors no-underline text-white/40">
+                Portals
+              </Link>
+              <span className="material-symbols-outlined text-xs">chevron_right</span>
+              <Link to={`/project/${projectId}`} className="hover:text-white/70 transition-colors no-underline text-white/40">
+                {project.name}
+              </Link>
+              <span className="material-symbols-outlined text-xs">chevron_right</span>
+              <span className="text-white/60">{selectedDept.name}</span>
+            </nav>
+            <h1 className="text-3xl lg:text-5xl font-black tracking-tighter font-headline leading-[0.95] text-white">
+              {project.name} <span className="text-white/50">Portal</span>
+            </h1>
+          </div>
+        </section>
+
+        {/* ── Department Pills ── */}
+        <section className="mb-10">
+          <div className="flex flex-wrap gap-2">
             {departments.map((dept) => {
               const isSelected = dept.id === departmentId;
-              if (isSelected) {
-                return (
-                  <div
-                    key={dept.id}
-                    className="p-8 rounded-xl bg-white border-2 border-accent shadow-sm relative transition-colors text-center"
-                  >
-                    <div className="absolute top-4 right-4">
-                      <span
-                        className="material-symbols-outlined text-accent text-lg"
-                        style={{ fontVariationSettings: "'FILL' 1" }}
-                      >
-                        check_circle
-                      </span>
-                    </div>
-                    <div className="w-12 h-12 bg-accent text-white rounded-full flex items-center justify-center mx-auto mb-4">
-                      <span className="material-symbols-outlined">
-                        {dept.icon}
-                      </span>
-                    </div>
-                    <h5 className="font-bold text-accent text-sm">
-                      {dept.name}
-                    </h5>
-                  </div>
-                );
-              }
-
               return (
                 <Link
                   key={dept.id}
                   to={`/project/${projectId}/department/${dept.id}`}
-                  className="p-8 rounded-xl bg-white border border-slate-200 hover:border-accent-50 transition-colors group cursor-pointer text-center no-underline"
+                  className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all no-underline ${
+                    isSelected
+                      ? "bg-accent text-white shadow-lg"
+                      : "bg-white text-on-surface-variant hover:bg-surface-container-high border border-on-surface-variant/8"
+                  }`}
+                  style={
+                    isSelected
+                      ? { boxShadow: `0 4px 20px ${project.color}30` }
+                      : undefined
+                  }
                 >
-                  <div className="w-12 h-12 bg-slate-50 text-slate-600 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-accent group-hover:text-white transition-colors">
-                    <span className="material-symbols-outlined">
-                      {dept.icon}
-                    </span>
-                  </div>
-                  <h5 className="font-bold text-on-surface text-sm">
-                    {dept.name}
-                  </h5>
+                  <span
+                    className="material-symbols-outlined text-[18px]"
+                    style={
+                      isSelected
+                        ? { fontVariationSettings: "'FILL' 1" }
+                        : undefined
+                    }
+                  >
+                    {dept.icon}
+                  </span>
+                  {dept.name}
                 </Link>
               );
             })}
           </div>
         </section>
 
-        {/* Reports Section */}
-        <section className="max-w-4xl">
-          <div className="flex items-center justify-between mb-8">
+        {/* ── Reports ── */}
+        <section>
+          <div className="flex items-center justify-between mb-6">
             <div>
-              <h3 className="text-2xl font-bold font-headline text-on-surface">
+              <h3 className="text-xl font-bold font-headline text-on-surface">
                 {selectedDept.name} Reports
               </h3>
-              <p className="text-on-surface-variant text-sm mt-1">
-                Project #{project.color.replace("#", "")} Fiscal Year 2024
+              <p className="text-on-surface-variant/60 text-sm mt-1">
+                Fiscal Year 2024
               </p>
             </div>
-            <button className="bg-accent text-white px-6 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 hover:opacity-90 transition-opacity editorial-shadow">
-              <span className="material-symbols-outlined text-sm">
-                download
+            <button
+              className="bg-accent text-white px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 hover:opacity-90 transition-all shadow-lg group"
+              style={{ boxShadow: `0 4px 20px ${project.color}25` }}
+            >
+              <span className="material-symbols-outlined text-[18px]">download</span>
+              Export
+              <span className="material-symbols-outlined text-[14px] group-hover:translate-x-0.5 transition-transform">
+                arrow_forward
               </span>
-              Export Data
             </button>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-3">
             {reports.map((report) => (
               <div
                 key={report.id}
-                className="bg-white border border-slate-100 p-6 rounded-2xl editorial-shadow hover:border-accent-20 transition-all group flex items-center justify-between"
+                className="group bg-white rounded-2xl p-5 flex items-center justify-between card-lift border border-transparent hover:border-accent-20"
+                style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
               >
-                <div className="flex items-center gap-6">
+                <div className="flex items-center gap-5">
                   <div
-                    className="w-14 h-14 rounded-2xl flex items-center justify-center"
+                    className="w-13 h-13 rounded-2xl flex items-center justify-center shrink-0"
                     style={{
-                      backgroundColor: `color-mix(in srgb, ${project.color} 10%, transparent)`,
+                      width: "52px",
+                      height: "52px",
+                      backgroundColor: `${project.color}10`,
                       color: project.color,
                     }}
                   >
@@ -138,26 +152,26 @@ export default function ReportsPage() {
                     </span>
                   </div>
                   <div>
-                    <h4 className="font-bold text-on-surface group-hover:text-accent transition-colors">
+                    <h4 className="font-bold text-on-surface group-hover:text-accent transition-colors text-[15px]">
                       {report.title}
                     </h4>
-                    <div className="flex gap-4 mt-1">
-                      <span className="text-xs text-on-surface-variant flex items-center gap-1.5">
-                        <span className="material-symbols-outlined text-sm">
+                    <div className="flex gap-4 mt-1.5">
+                      <span className="text-xs text-on-surface-variant/60 flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-[14px]">
                           calendar_today
-                        </span>{" "}
+                        </span>
                         {report.date}
                       </span>
-                      <span className="text-xs text-on-surface-variant flex items-center gap-1.5">
-                        <span className="material-symbols-outlined text-sm">
+                      <span className="text-xs text-on-surface-variant/60 flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-[14px]">
                           {report.metaIcon}
-                        </span>{" "}
+                        </span>
                         {report.meta}
                       </span>
                     </div>
                   </div>
                 </div>
-                <button className="px-4 py-2 rounded-lg text-xs font-bold text-accent bg-accent-5 hover:bg-accent-10 transition-colors uppercase tracking-wider">
+                <button className="px-4 py-2 rounded-xl text-xs font-bold text-accent bg-accent-5 hover:bg-accent-10 transition-colors uppercase tracking-wider">
                   Download
                 </button>
               </div>

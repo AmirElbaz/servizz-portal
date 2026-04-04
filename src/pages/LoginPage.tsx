@@ -32,218 +32,216 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="bg-surface font-body text-on-surface min-h-screen flex flex-col">
-      {/* Header */}
-      <header className="w-full py-8 px-12 flex justify-between items-center bg-transparent z-10">
-        <div className="flex items-center gap-4">
-          <div className="flex flex-col">
-            <span className="text-2xl font-bold tracking-tighter text-on-surface-variant font-headline leading-none">
-              Centercom
-            </span>
-            <div className="h-1 w-8 bg-primary mt-1"></div>
+    <div className="bg-surface min-h-screen flex items-center justify-center relative overflow-hidden">
+      {/* ── Animated Gradient Blobs ── */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-[20%] -right-[10%] w-[50%] h-[60%] rounded-full bg-primary/8 blur-[150px] animate-blob1" />
+        <div className="absolute -bottom-[15%] -left-[10%] w-[45%] h-[55%] rounded-full bg-tertiary/8 blur-[130px] animate-blob2" />
+        <div className="absolute top-[30%] left-[20%] w-[30%] h-[40%] rounded-full bg-primary-container/40 blur-[120px] animate-blob3" />
+      </div>
+
+      {/* ── Subtle Grid Pattern ── */}
+      <div
+        className="absolute inset-0 opacity-[0.03]"
+        style={{
+          backgroundImage:
+            "linear-gradient(rgba(0,0,0,.06) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,.06) 1px, transparent 1px)",
+          backgroundSize: "60px 60px",
+        }}
+      />
+
+      {/* ── Branding ── */}
+      <div className="absolute top-8 left-10 z-20 flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary-dim flex items-center justify-center shadow-lg shadow-primary/20">
+          <span
+            className="material-symbols-outlined text-white text-xl"
+            style={{ fontVariationSettings: "'FILL' 1" }}
+          >
+            hub
+          </span>
+        </div>
+        <div>
+          <div className="text-on-surface font-headline font-bold text-sm tracking-tight">
+            Centercom | Servizz
           </div>
-          <div className="h-8 w-[1px] bg-outline-variant/30 mx-2"></div>
-          <div className="flex flex-col">
-            <span className="text-xl font-extrabold tracking-tight text-primary font-headline leading-none uppercase">
-              Servizz
-            </span>
-            <span className="text-[10px] font-label tracking-widest text-on-surface-variant uppercase mt-1">
-              Unified Portal
-            </span>
+          <div className="text-on-surface-variant/50 text-[10px] tracking-[0.2em] uppercase font-medium">
+            Unified Portal
           </div>
         </div>
-      </header>
+      </div>
 
-      {/* Main Content */}
-      <main className="flex-grow flex items-center justify-center relative px-6 py-12">
-        {/* Background Accents */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute -top-[10%] -right-[5%] w-[40%] h-[60%] rounded-full bg-primary/5 blur-[120px]"></div>
-          <div className="absolute -bottom-[10%] -left-[5%] w-[30%] h-[50%] rounded-full bg-tertiary/5 blur-[100px]"></div>
-        </div>
+      {/* ── Login Card ── */}
+      <div className="relative z-10 w-full max-w-md mx-4">
+        <div className="bg-white rounded-3xl p-10 relative overflow-hidden shadow-[0_20px_60px_-15px_rgba(0,0,0,0.08)] border border-on-surface-variant/5">
+          {/* Card inner glow */}
+          <div className="absolute -top-20 -right-20 w-40 h-40 bg-primary/5 rounded-full blur-[60px] pointer-events-none" />
 
-        <div className="w-full max-w-[1200px] grid grid-cols-1 lg:grid-cols-12 gap-0 relative z-20 overflow-hidden rounded-xl editorial-shadow bg-surface-container-lowest">
-          {/* Information Panel */}
-          <div className="lg:col-span-5 bg-surface-container p-12 lg:p-16 flex flex-col justify-between">
-            <div>
-              <span className="font-label font-semibold text-primary uppercase tracking-[0.2em] mb-8 block text-sm">
-                Identity Management
-              </span>
-              <h1 className="font-headline text-4xl lg:text-5xl font-bold text-on-surface leading-[1.1] mb-6 tracking-tight">
-                Secure access to <br />
-                <span className="text-primary-dim">National Services.</span>
+          <div className="relative">
+            {/* Header */}
+            <div className="mb-8">
+              <h1 className="text-3xl font-extrabold text-on-surface font-headline tracking-tight mb-2">
+                Welcome back.
               </h1>
-              <p className="text-on-surface-variant text-lg leading-relaxed max-w-md font-body">
-                Your single point of entry for government departments, financial
-                portals, and education resources. Powered by enterprise-grade
-                encryption.
+              <p className="text-on-surface-variant/60 text-sm">
+                Sign in to access your government services
               </p>
             </div>
-            <div className="mt-12 lg:mt-0">
-              <div className="flex items-center gap-4 mb-6">
-                <div className="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center">
-                  <span className="material-symbols-outlined text-primary text-xl">
-                    verified_user
-                  </span>
-                </div>
-                <div>
-                  <p className="font-semibold text-on-surface">
-                    Trusted Identity
-                  </p>
-                  <p className="text-sm text-on-surface-variant">
-                    Validated through secure protocols
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-tertiary-container flex items-center justify-center">
-                  <span className="material-symbols-outlined text-tertiary text-xl">
-                    encrypted
-                  </span>
-                </div>
-                <div>
-                  <p className="font-semibold text-on-surface">Data Privacy</p>
-                  <p className="text-sm text-on-surface-variant">
-                    Compliant with international standards
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
 
-          {/* Login Form Panel */}
-          <div className="lg:col-span-7 bg-surface-container-lowest p-12 lg:p-20">
-            <div className="max-w-md mx-auto">
-              <div className="mb-10">
-                <h2 className="text-2xl font-bold font-headline text-on-surface mb-2">
-                  Sign In
-                </h2>
-                <p className="text-on-surface-variant">
-                  Please enter your credentials to continue
-                </p>
+            <form className="space-y-5" onSubmit={handleSubmit}>
+              {/* Username */}
+              <div className="space-y-2">
+                <label className="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/60 block">
+                  Username
+                </label>
+                <div className="relative group">
+                  <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/30 group-focus-within:text-primary transition-colors text-[20px]">
+                    person
+                  </span>
+                  <input
+                    className="w-full pl-12 pr-4 py-3.5 bg-surface-container-high/60 rounded-xl border border-on-surface-variant/8 text-on-surface placeholder:text-on-surface-variant/30 font-medium text-sm focus:outline-none focus:border-primary/30 focus:bg-white focus:shadow-[0_0_20px_rgba(29,95,168,0.08)] transition-all"
+                    placeholder="Enter your ID or email"
+                    type="text"
+                  />
+                </div>
               </div>
 
-              <form className="space-y-6" onSubmit={handleSubmit}>
-                {/* Username Field */}
-                <div className="space-y-2">
-                  <label
-                    className="text-xs font-semibold uppercase tracking-widest text-on-surface-variant block ml-1"
-                    htmlFor="username"
-                  >
-                    Username
+              {/* Password */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <label className="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/60 block">
+                    Password
                   </label>
-                  <div className="relative group">
-                    <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline group-focus-within:text-primary transition-colors">
-                      person
-                    </span>
-                    <input
-                      className="w-full pl-12 pr-4 py-4 bg-surface-container-high rounded-xl border-none focus:bg-surface-container-lowest focus:ring-2 focus:ring-primary/20 transition-all text-on-surface placeholder:text-outline-variant font-medium focus:outline-none"
-                      id="username"
-                      name="username"
-                      placeholder="Enter your ID or email"
-                      type="text"
-                    />
-                  </div>
+                  <Link
+                    to="/forgot-password"
+                    className="text-[11px] font-semibold text-primary hover:text-primary-dim transition-colors"
+                  >
+                    Forgot?
+                  </Link>
                 </div>
-
-                {/* Password Field */}
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <label
-                      className="text-xs font-semibold uppercase tracking-widest text-on-surface-variant block ml-1"
-                      htmlFor="password"
-                    >
-                      Password
-                    </label>
-                    <Link
-                      className="text-xs font-semibold text-primary hover:text-primary-dim transition-colors"
-                      to="/forgot-password"
-                    >
-                      Forgot Password?
-                    </Link>
-                  </div>
-                  <div className="relative group">
-                    <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline group-focus-within:text-primary transition-colors">
-                      lock
-                    </span>
-                    <input
-                      className="w-full pl-12 pr-12 py-4 bg-surface-container-high rounded-xl border-none focus:bg-surface-container-lowest focus:ring-2 focus:ring-primary/20 transition-all text-on-surface placeholder:text-outline-variant font-medium focus:outline-none"
-                      id="password"
-                      name="password"
-                      placeholder="••••••••"
-                      type="password"
-                    />
-                    <button
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-outline-variant hover:text-outline"
-                      type="button"
-                    >
-                      <span className="material-symbols-outlined">
-                        visibility
-                      </span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* 4-Digit PIN Field */}
-                <div className="space-y-4 pt-2">
-                  <div className="flex items-center gap-3">
-                    <div className="h-[1px] flex-grow bg-outline-variant/20"></div>
-                    <span className="text-[10px] font-bold text-outline uppercase tracking-widest">
-                      Enhanced Security
-                    </span>
-                    <div className="h-[1px] flex-grow bg-outline-variant/20"></div>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-semibold uppercase tracking-widest text-on-surface-variant block ml-1">
-                      Secure 4-Digit PIN
-                    </label>
-                    <div className="flex gap-4 justify-between">
-                      {pinRefs.map((ref, i) => (
-                        <input
-                          key={i}
-                          ref={ref}
-                          className="w-16 h-16 text-center text-2xl font-bold bg-surface-container-high rounded-xl border-none focus:bg-surface-container-lowest focus:ring-2 focus:ring-primary/20 transition-all text-primary focus:outline-none"
-                          maxLength={1}
-                          placeholder="•"
-                          type="password"
-                          onChange={(e) => handlePinInput(i, e.target.value)}
-                          onKeyDown={(e) => handlePinKeyDown(i, e)}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Login Button */}
-                <button
-                  className="w-full bg-gradient-to-r from-primary to-primary-dim text-on-primary py-5 rounded-xl font-bold text-lg tracking-tight editorial-shadow hover:opacity-95 transition-all flex items-center justify-center gap-3 group mt-4"
-                  type="submit"
-                >
-                  <span>Secure Login</span>
-                  <span className="material-symbols-outlined transition-transform group-hover:translate-x-1">
-                    arrow_forward
+                <div className="relative group">
+                  <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/30 group-focus-within:text-primary transition-colors text-[20px]">
+                    lock
                   </span>
-                </button>
-
-                {/* Secondary Links */}
-                <div className="pt-8 text-center space-y-4">
-                  <p className="text-sm text-on-surface-variant">
-                    New to the portal?{" "}
-                    <a
-                      className="text-primary font-semibold hover:underline"
-                      href="#"
-                    >
-                      Request Access
-                    </a>
-                  </p>
+                  <input
+                    className="w-full pl-12 pr-12 py-3.5 bg-surface-container-high/60 rounded-xl border border-on-surface-variant/8 text-on-surface placeholder:text-on-surface-variant/30 font-medium text-sm focus:outline-none focus:border-primary/30 focus:bg-white focus:shadow-[0_0_20px_rgba(29,95,168,0.08)] transition-all"
+                    placeholder="••••••••"
+                    type="password"
+                  />
+                  <button
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant/30 hover:text-on-surface-variant transition-colors"
+                    type="button"
+                  >
+                    <span className="material-symbols-outlined text-[20px]">
+                      visibility
+                    </span>
+                  </button>
                 </div>
-              </form>
+              </div>
+
+              {/* PIN */}
+              <div className="space-y-3 pt-1">
+                <div className="flex items-center gap-3">
+                  <div className="h-px flex-grow bg-on-surface-variant/8" />
+                  <span className="text-[10px] font-bold text-on-surface-variant/35 uppercase tracking-[0.15em]">
+                    Security PIN
+                  </span>
+                  <div className="h-px flex-grow bg-on-surface-variant/8" />
+                </div>
+                <div className="flex gap-3 justify-between">
+                  {pinRefs.map((ref, i) => (
+                    <input
+                      key={i}
+                      ref={ref}
+                      className="w-14 h-14 text-center text-xl font-bold bg-surface-container-high/60 rounded-xl border border-on-surface-variant/8 text-primary placeholder:text-on-surface-variant/20 focus:outline-none focus:border-primary/30 focus:bg-white focus:shadow-[0_0_20px_rgba(29,95,168,0.08)] transition-all"
+                      maxLength={1}
+                      placeholder="•"
+                      type="password"
+                      onChange={(e) => handlePinInput(i, e.target.value)}
+                      onKeyDown={(e) => handlePinKeyDown(i, e)}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Submit */}
+              <button
+                className="w-full bg-gradient-to-r from-primary to-primary-dim text-white py-4 rounded-xl font-bold text-sm tracking-wide shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 hover:opacity-95 transition-all flex items-center justify-center gap-2 group mt-2"
+                type="submit"
+              >
+                <span>Secure Login</span>
+                <span className="material-symbols-outlined text-lg transition-transform group-hover:translate-x-1">
+                  arrow_forward
+                </span>
+              </button>
+            </form>
+
+            {/* Bottom */}
+            <div className="mt-8 text-center">
+              <p className="text-sm text-on-surface-variant/50">
+                New to the portal?{" "}
+                <a className="text-primary font-semibold hover:text-primary-dim transition-colors" href="#">
+                  Request Access
+                </a>
+              </p>
+            </div>
+
+            {/* Trust Badges */}
+            <div className="mt-8 pt-6 border-t border-on-surface-variant/8 flex justify-center gap-8">
+              <div className="flex items-center gap-2">
+                <span
+                  className="material-symbols-outlined text-primary/50 text-[18px]"
+                  style={{ fontVariationSettings: "'FILL' 1" }}
+                >
+                  verified_user
+                </span>
+                <span className="text-[10px] text-on-surface-variant/40 font-medium uppercase tracking-wider">
+                  Trusted
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span
+                  className="material-symbols-outlined text-primary/50 text-[18px]"
+                  style={{ fontVariationSettings: "'FILL' 1" }}
+                >
+                  encrypted
+                </span>
+                <span className="text-[10px] text-on-surface-variant/40 font-medium uppercase tracking-wider">
+                  Encrypted
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span
+                  className="material-symbols-outlined text-primary/50 text-[18px]"
+                  style={{ fontVariationSettings: "'FILL' 1" }}
+                >
+                  shield
+                </span>
+                <span className="text-[10px] text-on-surface-variant/40 font-medium uppercase tracking-wider">
+                  ISO 27001
+                </span>
+              </div>
             </div>
           </div>
         </div>
-      </main>
+      </div>
 
-      <Footer variant="auth" />
+      {/* ── Footer ── */}
+      <footer className="absolute bottom-0 w-full py-6 flex justify-between items-center px-10 z-10">
+        <span className="text-[11px] tracking-wide text-on-surface-variant/30 font-medium">
+          &copy; 2024 Centercom &amp; Servizz
+        </span>
+        <div className="flex gap-6">
+          {["Privacy", "Terms", "Accessibility"].map((link) => (
+            <a
+              key={link}
+              className="text-[11px] tracking-wide text-on-surface-variant/30 hover:text-on-surface-variant/60 transition-colors"
+              href="#"
+            >
+              {link}
+            </a>
+          ))}
+        </div>
+      </footer>
     </div>
   );
 }
