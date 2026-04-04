@@ -39,25 +39,27 @@ export default function ProjectDetailPage() {
               backgroundSize: "50px 50px",
             }}
           />
-          {/* Large faded logo */}
-          <div className="absolute top-8 right-12 pointer-events-none opacity-[0.12]">
-            <img src={project.logo} alt="" className="h-32 lg:h-40 object-contain brightness-0 invert" />
-          </div>
-
           <div className="relative z-10">
             <nav className="flex items-center gap-2 mb-6 text-[10px] font-bold text-white/40 uppercase tracking-[0.2em]">
               <Link to="/dashboard" className="hover:text-white/70 transition-colors no-underline text-white/40">
-                Portals
+                Servizz.gov
               </Link>
               <span className="material-symbols-outlined text-xs">chevron_right</span>
               <span className="text-white/60">{project.name}</span>
             </nav>
-            <h1 className="text-4xl lg:text-6xl font-black tracking-tighter font-headline leading-[0.95] text-white mb-4">
-              {project.name} <span className="text-white/50">Portal</span>
-            </h1>
-            <p className="text-white/45 text-base max-w-2xl leading-relaxed">
-              {project.fullDescription}
-            </p>
+            <div className="flex items-start justify-between gap-8">
+              <div className="flex-1 min-w-0">
+                <h1 className="text-4xl lg:text-6xl font-black tracking-tighter font-headline leading-[0.95] text-white mb-4">
+                  {project.name} <span className="text-white/50">Portal</span>
+                </h1>
+                <p className="text-white/45 text-base max-w-2xl leading-relaxed">
+                  {project.fullDescription}
+                </p>
+              </div>
+              <div className="shrink-0 bg-white/15 backdrop-blur-md rounded-2xl p-4">
+                <img src={project.logo} alt={project.name} className="h-16 lg:h-20 object-contain drop-shadow-2xl" />
+              </div>
+            </div>
           </div>
         </section>
 

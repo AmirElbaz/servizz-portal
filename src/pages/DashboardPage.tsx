@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Link, useLocation } from "react-router-dom";
 import TopNavBar from "../components/layout/TopNavBar";
 import Footer from "../components/layout/Footer";
@@ -6,159 +6,184 @@ import { projects } from "../data/projects";
 
 export default function DashboardPage() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [heroCollapsed, setHeroCollapsed] = useState(false);
-  const heroRef = useRef<HTMLDivElement>(null);
+  const [heroVisible, setHeroVisible] = useState(true);
   const projectsRef = useRef<HTMLDivElement>(null);
+  const hasSnapped = useRef(false);
   const location = useLocation();
 
   const featuredProject = projects[0];
 
-  // Restore scroll position when coming back from a project page
+  // Restore scroll position when coming back
   useEffect(() => {
     const saved = sessionStorage.getItem("dashboard-scroll");
     if (saved && location.key !== "default") {
       const y = parseInt(saved, 10);
-      if (y > 100) {
-        setHeroCollapsed(true);
+      if (y > 50) {
+        setHeroVisible(false);
+        hasSnapped.current = true;
         requestAnimationFrame(() => window.scrollTo(0, y));
       }
     }
   }, [location.key]);
 
-  // Save scroll position on scroll + collapse hero
+  // On first scroll: snap-collapse hero and jump to projects
   useEffect(() => {
     function onScroll() {
       sessionStorage.setItem("dashboard-scroll", String(window.scrollY));
-      setHeroCollapsed(window.scrollY > 80);
+
+      if (!hasSnapped.current && window.scrollY > 10 && heroVisible) {
+        hasSnapped.current = true;
+        setHeroVisible(false);
+        setTimeout(() => {
+          window.scrollTo({ top: 0, behavior: "auto" });
+        }, 50);
+      }
+
+      // When user scrolls back to top, re-expand hero
+      if (hasSnapped.current && window.scrollY === 0 && !heroVisible) {
+        hasSnapped.current = false;
+        setHeroVisible(true);
+      }
     }
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
+  }, [heroVisible]);
+
+  const scrollToHero = useCallback(() => {
+    hasSnapped.current = false;
+    setHeroVisible(true);
+    window.scrollTo({ top: 0, behavior: "auto" });
   }, []);
 
-  function scrollToHero() {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  function scrollToProjects() {
-    if (projectsRef.current) {
-      const rect = projectsRef.current.getBoundingClientRect();
-      const scrollTop = window.scrollY + rect.top - 30;
-      window.scrollTo({ top: scrollTop, behavior: "smooth" });
+  const scrollToProjects = useCallback(() => {
+    if (heroVisible) {
+      // Snap collapse first, then we're already at projects
+      hasSnapped.current = true;
+      setHeroVisible(false);
+      setTimeout(() => {
+        window.scrollTo({ top: 0, behavior: "auto" });
+      }, 50);
+    } else {
+      // Already collapsed - just scroll to top where projects are
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
-  }
+  }, [heroVisible]);
 
   return (
     <div className="bg-surface text-on-surface min-h-screen">
-      <TopNavBar onPortalsClick={scrollToHero} onServizzClick={scrollToProjects} />
+      <TopNavBar
+        onPortalsClick={scrollToHero}
+        onServizzClick={scrollToProjects}
+        heroCollapsed={!heroVisible}
+        featuredProject={featuredProject}
+      />
 
-      {/* ── Hero: Featured Project (full viewport initially, contained width) ── */}
-      <div className={`px-6 lg:px-12 max-w-7xl mx-auto transition-all duration-1000 ${heroCollapsed ? "pt-24 pb-4" : "pt-28 pb-6"}`}>
-      <section
-        ref={heroRef}
-        className={`relative overflow-hidden flex items-center justify-center transition-all duration-1000 ease-out rounded-3xl ${
-          heroCollapsed ? "min-h-[300px]" : "min-h-[calc(100vh-10rem)]"
-        }`}
+      {/* ── Hero ── */}
+      <div
+        className="overflow-hidden transition-all duration-[1400ms] ease-[cubic-bezier(0.4,0,0.2,1)]"
         style={{
-          background: `linear-gradient(135deg, ${featuredProject.color} 0%, color-mix(in srgb, ${featuredProject.color} 65%, #000) 100%)`,
+          maxHeight: heroVisible ? "100vh" : "0px",
         }}
       >
-        {/* Blobs */}
-        <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          <div className="absolute -top-[30%] -right-[15%] w-[50%] h-[70%] rounded-full bg-white/[0.08] blur-[120px] animate-blob1" />
-          <div className="absolute -bottom-[20%] -left-[10%] w-[40%] h-[50%] rounded-full bg-black/10 blur-[100px] animate-blob2" />
-        </div>
-        {/* Grid */}
         <div
-          className="absolute inset-0 opacity-[0.03]"
+          className="px-6 lg:px-12 max-w-7xl mx-auto pt-28 pb-6 transition-all duration-[1400ms] ease-[cubic-bezier(0.4,0,0.2,1)]"
           style={{
-            backgroundImage:
-              "linear-gradient(rgba(255,255,255,.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.1) 1px, transparent 1px)",
-            backgroundSize: "50px 50px",
+            minHeight: "calc(100vh - 2rem)",
+            display: "flex",
+            alignItems: "center",
+            transform: heroVisible ? "scale(1) translateY(0px)" : "scale(0.15) translateY(-45vh)",
+            opacity: heroVisible ? 1 : 0,
+            transformOrigin: "top center",
           }}
-        />
-
-        <div className="relative z-10 w-full px-10 lg:px-16 py-10 lg:py-14">
-          {/* Top row: text left, logo right */}
-          <div className="flex items-start justify-between gap-8">
-            {/* Left: title + description */}
-            <div className="flex-1 min-w-0">
-              <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-white/30 mb-4">
-                {featuredProject.code} &middot; Featured Portal
-              </p>
-              <h1
-                className={`font-black tracking-tighter font-headline leading-[0.95] text-white mb-4 transition-all duration-1000 ${
-                  heroCollapsed ? "text-3xl lg:text-4xl" : "text-4xl lg:text-6xl"
-                }`}
-              >
-                {featuredProject.name}
-              </h1>
-              <p
-                className={`text-white/40 max-w-lg leading-relaxed transition-all duration-1000 ${
-                  heroCollapsed ? "text-sm opacity-0 h-0 overflow-hidden" : "text-base"
-                }`}
-              >
-                {featuredProject.fullDescription}
-              </p>
+        >
+          <section
+            className="relative overflow-hidden w-full transition-all duration-[1400ms] ease-[cubic-bezier(0.4,0,0.2,1)]"
+            style={{
+              background: `linear-gradient(135deg, ${featuredProject.color} 0%, color-mix(in srgb, ${featuredProject.color} 65%, #000) 100%)`,
+              boxShadow: `0 25px 80px -20px ${featuredProject.color}40, 0 10px 30px -10px rgba(0,0,0,0.15)`,
+              borderRadius: heroVisible ? "1.5rem" : "0.75rem",
+            }}
+          >
+            {/* Blobs */}
+            <div className="absolute inset-0 pointer-events-none overflow-hidden">
+              <div className="absolute -top-[30%] -right-[15%] w-[50%] h-[70%] rounded-full bg-white/[0.08] blur-[120px] animate-blob1" />
+              <div className="absolute -bottom-[20%] -left-[10%] w-[40%] h-[50%] rounded-full bg-black/10 blur-[100px] animate-blob2" />
             </div>
+            {/* Grid */}
+            <div
+              className="absolute inset-0 opacity-[0.03]"
+              style={{
+                backgroundImage:
+                  "linear-gradient(rgba(255,255,255,.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.1) 1px, transparent 1px)",
+                backgroundSize: "50px 50px",
+              }}
+            />
 
-            {/* Right: logo */}
-            <div className="shrink-0">
-              <img
-                src={featuredProject.logo}
-                alt={featuredProject.name}
-                className={`object-contain transition-all duration-1000 ${
-                  heroCollapsed ? "h-14" : "h-20 lg:h-24"
-                }`}
-              />
-            </div>
-          </div>
-
-          {/* Bottom row: stats left, button right */}
-          <div className={`flex items-end justify-between gap-8 transition-all duration-1000 ${heroCollapsed ? "mt-6" : "mt-10"}`}>
-            {/* Stats */}
-            <div className="flex gap-10">
-              <div>
-                <p className={`font-black text-white tracking-tight transition-all duration-1000 ${heroCollapsed ? "text-xl" : "text-3xl"}`}>14</p>
-                <p className="text-[10px] font-bold text-white/25 uppercase tracking-[0.15em] mt-1">Active Portals</p>
+            <div className="relative z-10 w-full px-10 lg:px-16 py-14 lg:py-20">
+              {/* Top row: text left, logo right */}
+              <div className="flex items-start justify-between gap-10">
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-white/30 mb-4">
+                    {featuredProject.code} &middot; Featured Portal
+                  </p>
+                  <h1 className="text-5xl lg:text-7xl font-black tracking-tighter font-headline leading-[0.9] text-white mb-5">
+                    {featuredProject.name}
+                  </h1>
+                  <p className="text-white/40 max-w-lg leading-relaxed text-base lg:text-lg">
+                    {featuredProject.fullDescription}
+                  </p>
+                </div>
+                <div className="shrink-0 bg-white/15 backdrop-blur-md rounded-2xl p-4">
+                  <img
+                    src={featuredProject.logo}
+                    alt={featuredProject.name}
+                    className="h-20 lg:h-28 object-contain drop-shadow-2xl"
+                  />
+                </div>
               </div>
-              <div className="w-px h-10 bg-white/10" />
-              <div>
-                <p className={`font-black text-white tracking-tight transition-all duration-1000 ${heroCollapsed ? "text-xl" : "text-3xl"}`}>99.8%</p>
-                <p className="text-[10px] font-bold text-white/25 uppercase tracking-[0.15em] mt-1">Uptime</p>
+
+              {/* Bottom row: stats left, button right */}
+              <div className="flex items-end justify-between gap-8 mt-12">
+                <div className="flex gap-10">
+                  <div>
+                    <p className="text-3xl lg:text-4xl font-black text-white tracking-tight">14</p>
+                    <p className="text-[10px] font-bold text-white/25 uppercase tracking-[0.15em] mt-1">Active Portals</p>
+                  </div>
+                  <div className="w-px h-12 bg-white/10" />
+                  <div>
+                    <p className="text-3xl lg:text-4xl font-black text-white tracking-tight">99.8%</p>
+                    <p className="text-[10px] font-bold text-white/25 uppercase tracking-[0.15em] mt-1">Uptime</p>
+                  </div>
+                  <div className="w-px h-12 bg-white/10 hidden sm:block" />
+                  <div className="hidden sm:block">
+                    <p className="text-3xl lg:text-4xl font-black text-white tracking-tight">1.2k</p>
+                    <p className="text-[10px] font-bold text-white/25 uppercase tracking-[0.15em] mt-1">Daily Calls</p>
+                  </div>
+                </div>
+                <Link
+                  to={`/project/${featuredProject.id}`}
+                  className="inline-flex items-center gap-2 bg-white/15 hover:bg-white/25 backdrop-blur-sm text-white px-8 py-3.5 rounded-xl font-bold text-sm transition-all group no-underline border border-white/10 shrink-0 shadow-lg shadow-black/10"
+                >
+                  View Reports
+                  <span className="material-symbols-outlined text-[18px] group-hover:translate-x-1 transition-transform">
+                    arrow_forward
+                  </span>
+                </Link>
               </div>
-              <div className="w-px h-10 bg-white/10 hidden sm:block" />
-              <div className="hidden sm:block">
-                <p className={`font-black text-white tracking-tight transition-all duration-1000 ${heroCollapsed ? "text-xl" : "text-3xl"}`}>1.2k</p>
-                <p className="text-[10px] font-bold text-white/25 uppercase tracking-[0.15em] mt-1">Daily Calls</p>
+
+              {/* Scroll hint */}
+              <div className="flex justify-center mt-8 animate-bounce">
+                <button onClick={scrollToProjects} className="text-white/20 hover:text-white/40 transition-colors">
+                  <span className="material-symbols-outlined text-3xl">expand_more</span>
+                </button>
               </div>
             </div>
-
-            {/* View Reports button (right) */}
-            <div className={`shrink-0 transition-all duration-1000 ${heroCollapsed ? "opacity-0 pointer-events-none" : ""}`}>
-              <Link
-                to={`/project/${featuredProject.id}`}
-                className="inline-flex items-center gap-2 bg-white/15 hover:bg-white/25 backdrop-blur-sm text-white px-7 py-3 rounded-xl font-bold text-sm transition-all group no-underline border border-white/10"
-              >
-                View Reports
-                <span className="material-symbols-outlined text-[18px] group-hover:translate-x-1 transition-transform">
-                  arrow_forward
-                </span>
-              </Link>
-            </div>
-          </div>
-
-          {/* Scroll hint */}
-          <div className={`flex justify-center mt-6 transition-all duration-1000 ${heroCollapsed ? "opacity-0 h-0" : "opacity-100 animate-bounce"}`}>
-            <button onClick={scrollToProjects} className="text-white/20 hover:text-white/40 transition-colors">
-              <span className="material-symbols-outlined text-3xl">expand_more</span>
-            </button>
-          </div>
+          </section>
         </div>
-      </section>
       </div>
 
       {/* ── Projects Section ── */}
-      <main className="pt-12 pb-16 px-6 lg:px-12 max-w-7xl mx-auto">
+      <main className={`pb-16 px-6 lg:px-12 max-w-7xl mx-auto ${heroVisible ? "pt-6" : "pt-28"}`}>
         <section>
           <div ref={projectsRef} className="flex items-center justify-between mb-8">
             <h2 className="text-2xl font-bold font-headline text-on-surface tracking-tight">
@@ -189,26 +214,13 @@ export default function DashboardPage() {
                   className="group relative bg-white rounded-2xl p-6 no-underline card-lift overflow-hidden border border-transparent hover:border-on-surface-variant/10"
                   style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
                 >
-                  <div
-                    className="absolute top-0 left-0 right-0 h-1 transition-all duration-300 group-hover:h-1.5"
-                    style={{ backgroundColor: project.color }}
-                  />
-                  <div
-                    className="absolute -top-20 -right-20 w-40 h-40 rounded-full blur-[60px] opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
-                    style={{ backgroundColor: `${project.color}15` }}
-                  />
+                  <div className="absolute top-0 left-0 right-0 h-1 transition-all duration-300 group-hover:h-1.5" style={{ backgroundColor: project.color }} />
+                  <div className="absolute -top-20 -right-20 w-40 h-40 rounded-full blur-[60px] opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" style={{ backgroundColor: `${project.color}15` }} />
                   <div className="relative">
-                    <img
-                      src={project.logo}
-                      alt={project.code}
-                      className="w-12 h-12 object-contain mb-5 transition-all duration-300 group-hover:scale-110"
-                    />
-                    <span
-                      className="text-[9px] font-extrabold uppercase tracking-[0.15em] block mb-1"
-                      style={{ color: project.color }}
-                    >
-                      {project.code}
-                    </span>
+                    <div className="w-14 h-14 rounded-xl bg-surface-container-high/50 backdrop-blur-sm flex items-center justify-center mb-5 transition-all duration-300 group-hover:scale-110">
+                      <img src={project.logo} alt={project.code} className="w-10 h-10 object-contain" />
+                    </div>
+                    <span className="text-[9px] font-extrabold uppercase tracking-[0.15em] block mb-1" style={{ color: project.color }}>{project.code}</span>
                     <h3 className="font-bold text-on-surface text-[15px] mb-1.5">{project.name}</h3>
                     <p className="text-[12px] text-on-surface-variant/70 leading-relaxed">{project.description}</p>
                     <div className="mt-4 flex items-center gap-1.5 text-on-surface-variant/40 group-hover:text-on-surface transition-colors">
@@ -228,15 +240,10 @@ export default function DashboardPage() {
                   className="group relative bg-white rounded-2xl p-5 no-underline card-lift overflow-hidden border border-transparent hover:border-on-surface-variant/10 flex items-center gap-5"
                   style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
                 >
-                  <div
-                    className="absolute left-0 top-0 bottom-0 w-1 transition-all duration-300 group-hover:w-1.5 rounded-l-2xl"
-                    style={{ backgroundColor: project.color }}
-                  />
-                  <img
-                    src={project.logo}
-                    alt={project.code}
-                    className="w-11 h-11 object-contain shrink-0 transition-all duration-300 group-hover:scale-110"
-                  />
+                  <div className="absolute left-0 top-0 bottom-0 w-1 transition-all duration-300 group-hover:w-1.5 rounded-l-2xl" style={{ backgroundColor: project.color }} />
+                  <div className="w-12 h-12 rounded-xl bg-surface-container-high/50 backdrop-blur-sm flex items-center justify-center shrink-0 transition-all duration-300 group-hover:scale-110">
+                    <img src={project.logo} alt={project.code} className="w-9 h-9 object-contain" />
+                  </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-[9px] font-extrabold uppercase tracking-[0.15em]" style={{ color: project.color }}>{project.code}</span>

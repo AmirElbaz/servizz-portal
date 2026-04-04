@@ -205,6 +205,21 @@
 .animate-blob2 { animation: blob2 15s ease-in-out infinite; }
 .animate-blob3 { animation: blob3 18s ease-in-out infinite; }
 
+/* ── Hero float animation ── */
+@keyframes hero-float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes hero-logo-float {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  33% { transform: translateY(-6px) rotate(1deg); }
+  66% { transform: translateY(2px) rotate(-1deg); }
+}
+
+.animate-hero-float { animation: hero-float 6s ease-in-out infinite; }
+.animate-hero-logo { animation: hero-logo-float 8s ease-in-out infinite; }
+
 .material-symbols-outlined {
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
   vertical-align: middle;
