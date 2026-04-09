@@ -1,5 +1,6 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { projects, type Project } from "../../data/projects";
+import { useAuth } from "../../services/auth";
 
 interface TopNavBarProps {
   onPortalsClick?: () => void;
@@ -15,6 +16,13 @@ export default function TopNavBar({
   featuredProject,
 }: TopNavBarProps) {
   const project = featuredProject ?? projects[0];
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  function handleLogout() {
+    logout();
+    navigate("/");
+  }
 
   // Smooth interpolation for the button morph
   const btnStyle = heroCollapsed
@@ -94,9 +102,18 @@ export default function TopNavBar({
             <span className="material-symbols-outlined text-on-surface-variant text-[20px]">notifications</span>
             <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-primary rounded-full"></span>
           </button>
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-primary-dim flex items-center justify-center ml-1">
-            <span className="material-symbols-outlined text-white text-[18px]">person</span>
-          </div>
+          {user && (
+            <span className="text-xs font-semibold text-on-surface-variant hidden lg:block">
+              {user.fullName || user.username}
+            </span>
+          )}
+          <button
+            onClick={handleLogout}
+            className="p-2 hover:bg-error/10 rounded-xl transition-colors group"
+            title="Logout"
+          >
+            <span className="material-symbols-outlined text-on-surface-variant group-hover:text-error text-[20px]">logout</span>
+          </button>
         </div>
       </div>
     </header>

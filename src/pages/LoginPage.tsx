@@ -1,17 +1,19 @@
 import { type FormEvent, useState, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../services/auth";
 
 type LoginMode = "credentials" | "bankcode";
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [mode, setMode] = useState<LoginMode>("credentials");
-  const pinRefs = [
-    useRef<HTMLInputElement>(null),
-    useRef<HTMLInputElement>(null),
-    useRef<HTMLInputElement>(null),
-    useRef<HTMLInputElement>(null),
-  ];
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
   const codeRefs = [
     useRef<HTMLInputElement>(null),
     useRef<HTMLInputElement>(null),
@@ -34,9 +36,21 @@ export default function LoginPage() {
     }
   }
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    navigate("/dashboard");
+    setError("");
+    setLoading(true);
+
+    const fullEmail = username.includes("@") ? username : `${username}@centrecom.eu`;
+
+    try {
+      await login(fullEmail, password);
+      navigate("/dashboard");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Login failed");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -124,25 +138,38 @@ export default function LoginPage() {
               </button>
             </div>
 
+            {/* Error message */}
+            {error && (
+              <div className="mb-4 px-4 py-3 bg-error/8 border border-error/20 rounded-xl text-error text-sm font-medium flex items-center gap-2">
+                <span className="material-symbols-outlined text-[18px]">error</span>
+                {error}
+              </div>
+            )}
+
             <form className="space-y-5" onSubmit={handleSubmit}>
               {/* Fixed-height form area so card doesn't jump */}
               <div className="min-h-[290px]">
               {mode === "credentials" ? (
                 <div className="space-y-5">
-                  {/* Username */}
+                  {/* Email */}
                   <div className="space-y-2">
                     <label className="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/60 block">
-                      Username
+                      Email
                     </label>
-                    <div className="relative group">
-                      <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/30 group-focus-within:text-primary transition-colors text-[20px]">
-                        person
+                    <div className="relative group flex">
+                      <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/30 group-focus-within:text-primary transition-colors text-[20px] z-10">
+                        mail
                       </span>
                       <input
-                        className="w-full pl-12 pr-4 py-3.5 bg-surface-container-high/60 rounded-xl border border-on-surface-variant/8 text-on-surface placeholder:text-on-surface-variant/30 font-medium text-sm focus:outline-none focus:border-primary/30 focus:bg-white focus:shadow-[0_0_20px_rgba(29,95,168,0.08)] transition-all"
-                        placeholder="Enter your ID or email"
+                        className="w-full pl-12 pr-4 py-3.5 bg-surface-container-high/60 rounded-l-xl border border-r-0 border-on-surface-variant/8 text-on-surface placeholder:text-on-surface-variant/30 font-medium text-sm focus:outline-none focus:border-primary/30 focus:bg-white focus:shadow-[0_0_20px_rgba(29,95,168,0.08)] transition-all"
+                        placeholder="Enter your ID"
                         type="text"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
                       />
+                      <span className="inline-flex items-center px-3.5 py-3.5 bg-surface-container-high/80 border border-l-0 border-on-surface-variant/8 rounded-r-xl text-on-surface-variant/50 text-sm font-medium select-none whitespace-nowrap">
+                        @centrecom.eu
+                      </span>
                     </div>
                   </div>
 
@@ -154,6 +181,7 @@ export default function LoginPage() {
                       </label>
                       <Link
                         to="/forgot-password"
+                        tabIndex={-1}
                         className="text-[11px] font-semibold text-primary hover:text-primary-dim transition-colors"
                       >
                         Forgot?
@@ -165,42 +193,22 @@ export default function LoginPage() {
                       </span>
                       <input
                         className="w-full pl-12 pr-12 py-3.5 bg-surface-container-high/60 rounded-xl border border-on-surface-variant/8 text-on-surface placeholder:text-on-surface-variant/30 font-medium text-sm focus:outline-none focus:border-primary/30 focus:bg-white focus:shadow-[0_0_20px_rgba(29,95,168,0.08)] transition-all"
-                        placeholder="••••••••"
-                        type="password"
+                        placeholder="Enter your password"
+                        type={showPassword ? "text" : "password"}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
                       />
                       <button
                         className="absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant/30 hover:text-on-surface-variant transition-colors"
                         type="button"
+                        tabIndex={-1}
+                        onClick={() => setShowPassword(!showPassword)}
                       >
-                        <span className="material-symbols-outlined text-[20px]">visibility</span>
+                        <span className="material-symbols-outlined text-[20px]">{showPassword ? "visibility_off" : "visibility"}</span>
                       </button>
                     </div>
                   </div>
 
-                  {/* PIN */}
-                  <div className="space-y-3 pt-1">
-                    <div className="flex items-center gap-3">
-                      <div className="h-px flex-grow bg-on-surface-variant/8" />
-                      <span className="text-[10px] font-bold text-on-surface-variant/35 uppercase tracking-[0.15em]">
-                        Security PIN
-                      </span>
-                      <div className="h-px flex-grow bg-on-surface-variant/8" />
-                    </div>
-                    <div className="flex gap-3 justify-between">
-                      {pinRefs.map((ref, i) => (
-                        <input
-                          key={i}
-                          ref={ref}
-                          className="w-14 h-14 text-center text-xl font-bold bg-surface-container-high/60 rounded-xl border border-on-surface-variant/8 text-primary placeholder:text-on-surface-variant/20 focus:outline-none focus:border-primary/30 focus:bg-white focus:shadow-[0_0_20px_rgba(29,95,168,0.08)] transition-all"
-                          maxLength={1}
-                          placeholder="•"
-                          type="password"
-                          onChange={(e) => handleDigitInput(pinRefs, i, e.target.value)}
-                          onKeyDown={(e) => handleDigitKeyDown(pinRefs, i, e)}
-                        />
-                      ))}
-                    </div>
-                  </div>
                 </div>
               ) : (
                 <div className="space-y-5">
@@ -234,13 +242,16 @@ export default function LoginPage() {
 
               {/* Submit */}
               <button
-                className="w-full bg-gradient-to-r from-primary to-primary-dim text-white py-4 rounded-xl font-bold text-sm tracking-wide shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 hover:opacity-95 transition-all flex items-center justify-center gap-2 group mt-2"
+                className="w-full bg-gradient-to-r from-primary to-primary-dim text-white py-4 rounded-xl font-bold text-sm tracking-wide shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 hover:opacity-95 transition-all flex items-center justify-center gap-2 group mt-2 disabled:opacity-60"
                 type="submit"
+                disabled={loading}
               >
-                <span>Secure Login</span>
-                <span className="material-symbols-outlined text-lg transition-transform group-hover:translate-x-1">
-                  arrow_forward
-                </span>
+                <span>{loading ? "Signing in..." : "Secure Login"}</span>
+                {!loading && (
+                  <span className="material-symbols-outlined text-lg transition-transform group-hover:translate-x-1">
+                    arrow_forward
+                  </span>
+                )}
               </button>
             </form>
 

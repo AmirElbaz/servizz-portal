@@ -1,17 +1,61 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Link, useLocation } from "react-router-dom";
 import TopNavBar from "../components/layout/TopNavBar";
 import Footer from "../components/layout/Footer";
-import { projects } from "../data/projects";
+import type { Project } from "../data/projects";
+import { fetchDashboardSummary, type DashboardSummaryData } from "../services/api";
+import { fetchCatalogProjects, getLogoUrl, type CatalogProject } from "../services/catalog";
+
+type HeroState = "full" | "compact" | "hidden";
+
+function adaptProject(p: CatalogProject): Project {
+  return {
+    id: p.code,
+    code: p.shortLabel,
+    name: p.displayName,
+    description: p.description ?? "",
+    fullDescription: p.fullDescription ?? "",
+    icon: p.icon ?? "",
+    logo: getLogoUrl(p.logoFilename),
+    color: p.colorHex,
+    hoverBorderColor: "",
+  };
+}
 
 export default function DashboardPage() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [heroVisible, setHeroVisible] = useState(true);
+  const [heroState, setHeroState] = useState<HeroState>("full");
   const projectsRef = useRef<HTMLDivElement>(null);
-  const hasSnapped = useRef(false);
+  const phaseRef = useRef<HeroState>("full");
   const location = useLocation();
+  const [heroStats, setHeroStats] = useState<DashboardSummaryData | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
 
-  const featuredProject = projects[0];
+  // Fetch projects from catalog
+  useEffect(() => {
+    fetchCatalogProjects()
+      .then((list) => setProjects(list.map(adaptProject)))
+      .catch((err) => console.error("Failed to load projects:", err));
+  }, []);
+
+  const featuredProject = useMemo(() => {
+    if (projects.length === 0) return null;
+    const lastId = localStorage.getItem("last-project");
+    if (lastId) {
+      const found = projects.find((p) => p.id === lastId);
+      if (found) return found;
+    }
+    return projects[0];
+  }, [projects]);
+
+  // Fetch hero stats for today
+  useEffect(() => {
+    if (!featuredProject) return;
+    const today = new Date().toISOString().slice(0, 10);
+    fetchDashboardSummary(today, today, featuredProject.id)
+      .then(setHeroStats)
+      .catch(() => {});
+  }, [featuredProject]);
 
   // Restore scroll position when coming back
   useEffect(() => {
@@ -19,89 +63,117 @@ export default function DashboardPage() {
     if (saved && location.key !== "default") {
       const y = parseInt(saved, 10);
       if (y > 50) {
-        setHeroVisible(false);
-        hasSnapped.current = true;
+        setHeroState("hidden");
+        phaseRef.current = "hidden";
         requestAnimationFrame(() => window.scrollTo(0, y));
       }
     }
   }, [location.key]);
 
-  // On first scroll: snap-collapse hero and jump to projects
+  // Two-phase scroll collapse with lock
   useEffect(() => {
-    function onScroll() {
-      sessionStorage.setItem("dashboard-scroll", String(window.scrollY));
+    let locked = false;
 
-      if (!hasSnapped.current && window.scrollY > 10 && heroVisible) {
-        hasSnapped.current = true;
-        setHeroVisible(false);
-        setTimeout(() => {
-          window.scrollTo({ top: 0, behavior: "auto" });
-        }, 50);
+    function transition(next: HeroState) {
+      locked = true;
+      phaseRef.current = next;
+      setHeroState(next);
+      window.scrollTo({ top: 0, behavior: "auto" });
+      const lockTime = next === "hidden" ? 1200 : 1100;
+      setTimeout(() => { locked = false; }, lockTime);
+    }
+
+    function onWheel(e: WheelEvent) {
+      if (locked) { e.preventDefault(); return; }
+
+      const scrollDown = e.deltaY > 0;
+
+      if (phaseRef.current === "hidden") {
+        // In hidden state, allow normal scrolling but detect scroll-up at top
+        if (!scrollDown && window.scrollY < 5) {
+          e.preventDefault();
+          transition("compact");
+        } else {
+          sessionStorage.setItem("dashboard-scroll", String(window.scrollY));
+        }
+        return;
       }
 
-      // When user scrolls back to top, re-expand hero
-      if (hasSnapped.current && window.scrollY === 0 && !heroVisible) {
-        hasSnapped.current = false;
-        setHeroVisible(true);
+      // In full or compact, consume the wheel event and transition
+      e.preventDefault();
+      if (scrollDown) {
+        if (phaseRef.current === "full") transition("compact");
+        else if (phaseRef.current === "compact") transition("hidden");
+      } else {
+        if (phaseRef.current === "compact") transition("full");
       }
     }
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, [heroVisible]);
+
+    window.addEventListener("wheel", onWheel, { passive: false });
+    return () => window.removeEventListener("wheel", onWheel);
+  }, []);
 
   const scrollToHero = useCallback(() => {
-    hasSnapped.current = false;
-    setHeroVisible(true);
-    window.scrollTo({ top: 0, behavior: "auto" });
+    phaseRef.current = "full";
+    setHeroState("full");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
 
   const scrollToProjects = useCallback(() => {
-    if (heroVisible) {
-      // Snap collapse first, then we're already at projects
-      hasSnapped.current = true;
-      setHeroVisible(false);
-      setTimeout(() => {
-        window.scrollTo({ top: 0, behavior: "auto" });
-      }, 50);
+    if (heroState !== "hidden") {
+      phaseRef.current = "hidden";
+      setHeroState("hidden");
+      setTimeout(() => window.scrollTo({ top: 0, behavior: "auto" }), 50);
     } else {
-      // Already collapsed - just scroll to top where projects are
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
-  }, [heroVisible]);
+  }, [heroState]);
+
+  const isCompact = heroState === "compact";
+  const isHidden = heroState === "hidden";
+
+  if (!featuredProject) {
+    return (
+      <div className="bg-surface text-on-surface min-h-screen flex items-center justify-center">
+        <p className="text-on-surface-variant/60 text-sm">Loading…</p>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-surface text-on-surface min-h-screen">
       <TopNavBar
         onPortalsClick={scrollToHero}
         onServizzClick={scrollToProjects}
-        heroCollapsed={!heroVisible}
+        heroCollapsed={isHidden}
         featuredProject={featuredProject}
       />
 
       {/* ── Hero ── */}
       <div
-        className="overflow-hidden transition-all duration-[1400ms] ease-[cubic-bezier(0.4,0,0.2,1)]"
+        className="overflow-hidden"
         style={{
-          maxHeight: heroVisible ? "100vh" : "0px",
+          height: isHidden ? "0px" : isCompact ? "200px" : "calc(100vh - 2rem)",
+          opacity: isHidden ? 0 : 1,
+          transition: `all 1100ms cubic-bezier(0.4, 0, 0.2, 1)`,
         }}
       >
         <div
-          className="px-6 lg:px-12 max-w-7xl mx-auto pt-28 pb-6 transition-all duration-[1400ms] ease-[cubic-bezier(0.4,0,0.2,1)]"
+          className="px-6 lg:px-12 max-w-7xl mx-auto pt-28 pb-6 h-full"
           style={{
-            minHeight: "calc(100vh - 2rem)",
             display: "flex",
             alignItems: "center",
-            transform: heroVisible ? "scale(1) translateY(0px)" : "scale(0.15) translateY(-45vh)",
-            opacity: heroVisible ? 1 : 0,
+            transform: isHidden ? "scale(0.15) translateY(-45vh)" : "scale(1) translateY(0px)",
+            opacity: isHidden ? 0 : 1,
             transformOrigin: "top center",
+            transition: `all 1100ms cubic-bezier(0.4, 0, 0.2, 1)`,
           }}
         >
           <section
-            className="relative overflow-hidden w-full transition-all duration-[1400ms] ease-[cubic-bezier(0.4,0,0.2,1)]"
+            className="relative overflow-hidden w-full rounded-3xl transition-all duration-700 ease-[cubic-bezier(0.4,0,0.2,1)]"
             style={{
               background: `linear-gradient(135deg, ${featuredProject.color} 0%, color-mix(in srgb, ${featuredProject.color} 65%, #000) 100%)`,
               boxShadow: `0 25px 80px -20px ${featuredProject.color}40, 0 10px 30px -10px rgba(0,0,0,0.15)`,
-              borderRadius: heroVisible ? "1.5rem" : "0.75rem",
             }}
           >
             {/* Blobs */}
@@ -119,71 +191,101 @@ export default function DashboardPage() {
               }}
             />
 
-            <div className="relative z-10 w-full px-10 lg:px-16 py-14 lg:py-20">
-              {/* Top row: text left, logo right */}
-              <div className="flex items-start justify-between gap-10">
-                <div className="flex-1 min-w-0">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-white/30 mb-4">
-                    {featuredProject.code} &middot; Featured Portal
-                  </p>
-                  <h1 className="text-5xl lg:text-7xl font-black tracking-tighter font-headline leading-[0.9] text-white mb-5">
-                    {featuredProject.name}
-                  </h1>
-                  <p className="text-white/40 max-w-lg leading-relaxed text-base lg:text-lg">
-                    {featuredProject.fullDescription}
-                  </p>
-                </div>
-                <div className="shrink-0 bg-white/15 backdrop-blur-md rounded-2xl p-4">
-                  <img
-                    src={featuredProject.logo}
-                    alt={featuredProject.name}
-                    className="h-20 lg:h-28 object-contain drop-shadow-2xl"
-                  />
-                </div>
-              </div>
-
-              {/* Bottom row: stats left, button right */}
-              <div className="flex items-end justify-between gap-8 mt-12">
-                <div className="flex gap-10">
+            {isCompact ? (
+              /* ── Compact: logo + name + stats + button ── */
+              <div className="relative z-10 w-full px-10 lg:px-14 py-8 flex items-center justify-between gap-8">
+                <div className="flex items-center gap-6">
+                  <div className="shrink-0 bg-white rounded-2xl p-3">
+                    <img src={featuredProject.logo} alt={featuredProject.name} className="h-14 object-contain" />
+                  </div>
                   <div>
-                    <p className="text-3xl lg:text-4xl font-black text-white tracking-tight">14</p>
-                    <p className="text-[10px] font-bold text-white/25 uppercase tracking-[0.15em] mt-1">Active Portals</p>
-                  </div>
-                  <div className="w-px h-12 bg-white/10" />
-                  <div>
-                    <p className="text-3xl lg:text-4xl font-black text-white tracking-tight">99.8%</p>
-                    <p className="text-[10px] font-bold text-white/25 uppercase tracking-[0.15em] mt-1">Uptime</p>
-                  </div>
-                  <div className="w-px h-12 bg-white/10 hidden sm:block" />
-                  <div className="hidden sm:block">
-                    <p className="text-3xl lg:text-4xl font-black text-white tracking-tight">1.2k</p>
-                    <p className="text-[10px] font-bold text-white/25 uppercase tracking-[0.15em] mt-1">Daily Calls</p>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/30 mb-1">
+                      {featuredProject.code} &middot; Featured Portal
+                    </p>
+                    <h2 className="text-3xl lg:text-4xl font-black tracking-tighter font-headline text-white leading-none">
+                      {featuredProject.name}
+                    </h2>
                   </div>
                 </div>
-                <Link
-                  to={`/project/${featuredProject.id}`}
-                  className="inline-flex items-center gap-2 bg-white/15 hover:bg-white/25 backdrop-blur-sm text-white px-8 py-3.5 rounded-xl font-bold text-sm transition-all group no-underline border border-white/10 shrink-0 shadow-lg shadow-black/10"
-                >
-                  View Reports
-                  <span className="material-symbols-outlined text-[18px] group-hover:translate-x-1 transition-transform">
-                    arrow_forward
-                  </span>
-                </Link>
+                <div className="hidden md:flex items-center gap-8">
+                  <div className="flex gap-8">
+                    <div className="text-right">
+                      <p className="text-xl font-black text-white tracking-tight">{heroStats ? heroStats.offered.toLocaleString() : "—"}</p>
+                      <p className="text-[9px] font-bold text-white/25 uppercase tracking-[0.1em]">Offered</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xl font-black text-white tracking-tight">{heroStats ? `${heroStats.serviceLevel}%` : "—"}</p>
+                      <p className="text-[9px] font-bold text-white/25 uppercase tracking-[0.1em]">Service Level</p>
+                    </div>
+                  </div>
+                  <Link
+                    to={`/project/${featuredProject.id}`}
+                    className="inline-flex items-center gap-2 bg-white/15 hover:bg-white/25 backdrop-blur-sm text-white px-7 py-3 rounded-xl font-bold text-sm transition-all group no-underline border border-white/10 shrink-0"
+                  >
+                    View Reports
+                    <span className="material-symbols-outlined text-[18px] group-hover:translate-x-1 transition-transform">arrow_forward</span>
+                  </Link>
+                </div>
               </div>
+            ) : (
+              /* ── Full: everything visible ── */
+              <div className="relative z-10 w-full px-10 lg:px-16 py-14 lg:py-20">
+                <div className="flex items-start justify-between gap-10">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-white/30 mb-4">
+                      {featuredProject.code} &middot; Featured Portal
+                    </p>
+                    <h1 className="text-5xl lg:text-7xl font-black tracking-tighter font-headline leading-[0.9] text-white mb-5">
+                      {featuredProject.name}
+                    </h1>
+                    <p className="text-white/40 max-w-lg leading-relaxed text-base lg:text-lg">
+                      {featuredProject.fullDescription}
+                    </p>
+                  </div>
+                  <div className="shrink-0 bg-white rounded-2xl p-4">
+                    <img src={featuredProject.logo} alt={featuredProject.name} className="h-20 lg:h-28 object-contain" />
+                  </div>
+                </div>
 
-              {/* Scroll hint */}
-              <div className="flex justify-center mt-8 animate-bounce">
-                <button onClick={scrollToProjects} className="text-white/20 hover:text-white/40 transition-colors">
-                  <span className="material-symbols-outlined text-3xl">expand_more</span>
-                </button>
+                <div className="flex items-end justify-between gap-8 mt-12">
+                  <div className="flex gap-10">
+                    <div>
+                      <p className="text-3xl lg:text-4xl font-black text-white tracking-tight">{heroStats ? heroStats.offered.toLocaleString() : "—"}</p>
+                      <p className="text-[10px] font-bold text-white/25 uppercase tracking-[0.15em] mt-1">Offered</p>
+                    </div>
+                    <div className="w-px h-12 bg-white/10" />
+                    <div>
+                      <p className="text-3xl lg:text-4xl font-black text-white tracking-tight">{heroStats ? `${heroStats.serviceLevel}%` : "—"}</p>
+                      <p className="text-[10px] font-bold text-white/25 uppercase tracking-[0.15em] mt-1">Service Level</p>
+                    </div>
+                    <div className="w-px h-12 bg-white/10 hidden sm:block" />
+                    <div className="hidden sm:block">
+                      <p className="text-3xl lg:text-4xl font-black text-white tracking-tight">{heroStats ? heroStats.answered.toLocaleString() : "—"}</p>
+                      <p className="text-[10px] font-bold text-white/25 uppercase tracking-[0.15em] mt-1">Answered</p>
+                    </div>
+                  </div>
+                  <Link
+                    to={`/project/${featuredProject.id}`}
+                    className="inline-flex items-center gap-2 bg-white/15 hover:bg-white/25 backdrop-blur-sm text-white px-8 py-3.5 rounded-xl font-bold text-sm transition-all group no-underline border border-white/10 shrink-0 shadow-lg shadow-black/10"
+                  >
+                    View Reports
+                    <span className="material-symbols-outlined text-[18px] group-hover:translate-x-1 transition-transform">arrow_forward</span>
+                  </Link>
+                </div>
+
+                <div className="flex justify-center mt-8 animate-bounce">
+                  <button onClick={scrollToProjects} className="text-white/20 hover:text-white/40 transition-colors">
+                    <span className="material-symbols-outlined text-3xl">expand_more</span>
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
           </section>
         </div>
       </div>
 
       {/* ── Projects Section ── */}
-      <main className={`pb-16 px-6 lg:px-12 max-w-7xl mx-auto ${heroVisible ? "pt-6" : "pt-28"}`}>
+      <main className={`pb-16 px-6 lg:px-12 max-w-7xl mx-auto ${isHidden ? "pt-28" : "pt-6"}`}>
         <section>
           <div ref={projectsRef} className="flex items-center justify-between mb-8">
             <h2 className="text-2xl font-bold font-headline text-on-surface tracking-tight">
@@ -215,7 +317,7 @@ export default function DashboardPage() {
                   style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
                 >
                   <div className="absolute top-0 left-0 right-0 h-1 transition-all duration-300 group-hover:h-1.5" style={{ backgroundColor: project.color }} />
-                  <div className="absolute -top-20 -right-20 w-40 h-40 rounded-full blur-[60px] opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" style={{ backgroundColor: `${project.color}15` }} />
+                  <div className="absolute -top-20 -right-20 w-40 h-40 rounded-full blur-[60px] opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" style={{ backgroundColor: `${project.color}15` }} />
                   <div className="relative">
                     <div className="w-14 h-14 rounded-xl bg-surface-container-high/50 backdrop-blur-sm flex items-center justify-center mb-5 transition-all duration-300 group-hover:scale-110">
                       <img src={project.logo} alt={project.code} className="w-10 h-10 object-contain" />

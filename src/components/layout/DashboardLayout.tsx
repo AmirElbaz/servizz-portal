@@ -9,6 +9,7 @@ interface DashboardLayoutProps {
   onServizzClick?: () => void;
   heroCollapsed?: boolean;
   featuredProject?: Project;
+  wide?: boolean;
 }
 
 export default function DashboardLayout({
@@ -17,6 +18,7 @@ export default function DashboardLayout({
   onServizzClick,
   heroCollapsed,
   featuredProject,
+  wide = false,
 }: DashboardLayoutProps) {
   return (
     <div className="bg-surface text-on-surface min-h-screen">
@@ -26,7 +28,7 @@ export default function DashboardLayout({
         heroCollapsed={heroCollapsed}
         featuredProject={featuredProject}
       />
-      <main className="pt-28 pb-16 px-6 lg:px-12 max-w-7xl mx-auto">
+      <main className={`pt-28 pb-16 px-6 lg:px-12 mx-auto ${wide ? "max-w-[1800px]" : "max-w-7xl"}`}>
         {children}
       </main>
       <Footer />
