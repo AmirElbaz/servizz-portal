@@ -220,6 +220,78 @@
 .animate-hero-float { animation: hero-float 6s ease-in-out infinite; }
 .animate-hero-logo { animation: hero-logo-float 8s ease-in-out infinite; }
 
+@keyframes card-rise {
+  0%   { opacity: 0; transform: translateY(16px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.animate-card-rise {
+  opacity: 0;
+  animation: card-rise 800ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Scaffold wave stagger — cards cascade in as they enter viewport */
+.scaffold-card {
+  opacity: 0;
+  transform: translateY(40px) scale(0.96);
+  transition:
+    opacity 700ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 700ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+.scaffold-card.revealed {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+/* Soft continuous float for hero logos/elements */
+@keyframes soft-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-6px); }
+}
+.animate-soft-float { animation: soft-float 5s ease-in-out infinite; }
+
+/* Shimmer sweep (title entrance) */
+@keyframes shimmer-sweep {
+  0%   { background-position: -100% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer-text {
+  background: linear-gradient(110deg, #fff 30%, rgba(255,255,255,0.4) 50%, #fff 70%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer-sweep 3s ease-in-out infinite;
+}
+
+/* Glass tilt card — used by Variant C */
+.glass-tilt {
+  transform-style: preserve-3d;
+  transition: transform 400ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 400ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+.glass-tilt:hover {
+  transform: translateY(-4px);
+}
+
+/* Simple fade-in used for nav bar compact hero absorb */
+@keyframes fade-in {
+  0%   { opacity: 0; }
+  100% { opacity: 1; }
+}
+.animate-fade-in { animation: fade-in 300ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* Hero fade-in on mount */
+@keyframes hero-rise {
+  0%   { opacity: 0; transform: translateY(24px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.animate-hero-rise-1 { animation: hero-rise 900ms cubic-bezier(0.22, 1, 0.36, 1) 0ms   both; }
+.animate-hero-rise-2 { animation: hero-rise 900ms cubic-bezier(0.22, 1, 0.36, 1) 120ms both; }
+.animate-hero-rise-3 { animation: hero-rise 900ms cubic-bezier(0.22, 1, 0.36, 1) 240ms both; }
+.animate-hero-rise-4 { animation: hero-rise 900ms cubic-bezier(0.22, 1, 0.36, 1) 360ms both; }
+.animate-hero-rise-5 { animation: hero-rise 900ms cubic-bezier(0.22, 1, 0.36, 1) 480ms both; }
+
 .material-symbols-outlined {
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
   vertical-align: middle;

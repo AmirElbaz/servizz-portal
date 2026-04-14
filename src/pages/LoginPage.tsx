@@ -73,7 +73,7 @@ export default function LoginPage() {
       />
 
       {/* ── Branding ── */}
-      <div className="absolute top-8 left-10 z-20 flex items-center gap-3">
+      <div className="absolute top-6 left-4 md:top-8 md:left-10 z-20 flex items-center gap-3">
         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary-dim flex items-center justify-center shadow-lg shadow-primary/20">
           <span
             className="material-symbols-outlined text-white text-xl"
@@ -266,7 +266,7 @@ export default function LoginPage() {
             </div>
 
             {/* Trust Badges */}
-            <div className="mt-8 pt-6 border-t border-on-surface-variant/8 flex justify-center gap-8">
+            <div className="mt-8 pt-6 border-t border-on-surface-variant/8 flex justify-center gap-4 sm:gap-8">
               {[
                 { icon: "verified_user", label: "Trusted" },
                 { icon: "encrypted", label: "Encrypted" },
@@ -290,7 +290,7 @@ export default function LoginPage() {
       </div>
 
       {/* ── Footer ── */}
-      <footer className="absolute bottom-0 w-full py-6 flex justify-between items-center px-10 z-10">
+      <footer className="absolute bottom-0 w-full py-4 md:py-6 flex flex-col md:flex-row justify-between items-center gap-2 px-4 md:px-10 z-10">
         <span className="text-[11px] tracking-wide text-on-surface-variant/30 font-medium">
           &copy; 2024 Centercom &amp; Servizz.gov
         </span>

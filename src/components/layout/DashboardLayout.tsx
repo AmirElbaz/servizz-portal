@@ -28,7 +28,7 @@ export default function DashboardLayout({
         heroCollapsed={heroCollapsed}
         featuredProject={featuredProject}
       />
-      <main className={`pt-28 pb-16 px-6 lg:px-12 mx-auto ${wide ? "max-w-[1800px]" : "max-w-7xl"}`}>
+      <main className={`pt-20 sm:pt-28 pb-10 sm:pb-16 px-4 sm:px-6 lg:px-12 mx-auto ${wide ? "max-w-[1800px]" : "max-w-7xl"}`}>
         {children}
       </main>
       <Footer />

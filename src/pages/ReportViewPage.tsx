@@ -198,13 +198,14 @@ export default function ReportViewPage() {
     return () => { cancelled = true; };
   }, [dateFrom, dateTo, viewMode, currentPage, pageSize, projectId, groupBySkillset, intervalWidth]);
 
-  // Fetch chart + summary (independent of view mode)
+  // Fetch chart + summary (re-fetch when view mode / interval changes too)
   useEffect(() => {
     let cancelled = false;
+    const chartMode = viewMode === "raw" ? "daily" : viewMode;
     async function load() {
       try {
         const [chart, sum] = await Promise.all([
-          fetchChartData(dateFrom, dateTo, projectId),
+          fetchChartData(dateFrom, dateTo, projectId, chartMode, intervalWidth),
           fetchSummary(dateFrom, dateTo, projectId),
         ]);
         if (!cancelled) {
@@ -217,7 +218,7 @@ export default function ReportViewPage() {
     }
     load();
     return () => { cancelled = true; };
-  }, [dateFrom, dateTo, projectId]);
+  }, [dateFrom, dateTo, projectId, viewMode, intervalWidth]);
 
   // Reset page when filters change
   useEffect(() => {
@@ -226,7 +227,7 @@ export default function ReportViewPage() {
 
   if (catalogLoading) {
     return (
-      <DashboardLayout wide>
+      <DashboardLayout wide featuredProject={project ?? undefined}>
         <div className="flex items-center justify-center h-64">
           <p className="text-on-surface-variant/60 text-sm">Loading…</p>
         </div>
@@ -259,7 +260,7 @@ export default function ReportViewPage() {
   }));
 
   return (
-    <DashboardLayout wide>
+    <DashboardLayout wide featuredProject={project}>
       <div style={{ "--accent": project.color } as React.CSSProperties}>
         {/* ── Header ── */}
         <div className="mb-8">
@@ -279,9 +280,9 @@ export default function ReportViewPage() {
             <span className="text-accent">{report.name}</span>
           </nav>
 
-          <div className="flex items-start justify-between gap-6">
+          <div className="flex flex-col sm:flex-row items-start justify-between gap-4 sm:gap-6">
             <div>
-              <h1 className="text-3xl lg:text-4xl font-black tracking-tighter font-headline text-on-surface">
+              <h1 className="text-xl sm:text-3xl lg:text-4xl font-black tracking-tighter font-headline text-on-surface">
                 {report.name}
               </h1>
               <p className="text-on-surface-variant/60 text-sm mt-1">
@@ -314,8 +315,8 @@ export default function ReportViewPage() {
         {/* ── Filters ── */}
         <div className="mb-8 bg-white rounded-2xl p-5 space-y-4" style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
           {/* Row 1: Date range + View mode */}
-          <div className="flex flex-wrap items-end gap-4">
-            <div className="flex-1 min-w-[140px]">
+          <div className="flex flex-wrap items-end gap-3 sm:gap-4">
+            <div className="flex-1 min-w-[110px]">
               <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 block mb-1.5">
                 From
               </label>
@@ -323,11 +324,11 @@ export default function ReportViewPage() {
                 type="date"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
-                className="w-full py-2.5 px-3 bg-surface-container-high/50 rounded-xl border border-on-surface-variant/8 text-on-surface text-sm focus:outline-none focus:border-accent transition-all"
+                className="w-full py-2 sm:py-2.5 px-2 sm:px-3 bg-surface-container-high/50 rounded-xl border border-on-surface-variant/8 text-on-surface text-xs sm:text-sm focus:outline-none focus:border-accent transition-all"
                 style={{ colorScheme: "light" }}
               />
             </div>
-            <div className="flex-1 min-w-[140px]">
+            <div className="flex-1 min-w-[110px]">
               <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 block mb-1.5">
                 To
               </label>
@@ -335,11 +336,11 @@ export default function ReportViewPage() {
                 type="date"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
-                className="w-full py-2.5 px-3 bg-surface-container-high/50 rounded-xl border border-on-surface-variant/8 text-on-surface text-sm focus:outline-none focus:border-accent transition-all"
+                className="w-full py-2 sm:py-2.5 px-2 sm:px-3 bg-surface-container-high/50 rounded-xl border border-on-surface-variant/8 text-on-surface text-xs sm:text-sm focus:outline-none focus:border-accent transition-all"
                 style={{ colorScheme: "light" }}
               />
             </div>
-            <div className="min-w-[340px]">
+            <div className="w-full sm:w-auto sm:min-w-[340px]">
               <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 block mb-1.5">
                 View
               </label>
@@ -348,13 +349,13 @@ export default function ReportViewPage() {
                   <button
                     key={opt}
                     onClick={() => setViewMode(opt)}
-                    className={`flex-1 py-2.5 px-3 text-xs font-semibold capitalize transition-colors ${
+                    className={`flex-1 py-2 sm:py-2.5 px-1.5 sm:px-3 text-[10px] sm:text-xs font-semibold capitalize transition-colors ${
                       viewMode === opt
                         ? "bg-accent text-white"
                         : "bg-surface-container-high/50 text-on-surface-variant hover:bg-surface-container-high"
                     }`}
                   >
-                    {opt === "raw" ? "Raw Data" : opt}
+                    {opt === "raw" ? "Raw" : opt}
                   </button>
                 ))}
               </div>

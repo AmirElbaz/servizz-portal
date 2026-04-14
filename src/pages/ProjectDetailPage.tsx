@@ -48,7 +48,7 @@ export default function ProjectDetailPage() {
 
   if (loading) {
     return (
-      <DashboardLayout>
+      <DashboardLayout featuredProject={project ?? undefined}>
         <div className="flex items-center justify-center h-64">
           <p className="text-on-surface-variant/60 text-sm">Loading…</p>
         </div>
@@ -67,13 +67,13 @@ export default function ProjectDetailPage() {
   }
 
   return (
-    <DashboardLayout>
+    <DashboardLayout featuredProject={project}>
       <div style={{ "--accent": project.color } as React.CSSProperties}>
         {/* ── Hero Banner: gradient + white logo panel ── */}
-        <section className="rounded-3xl mb-12 overflow-hidden flex">
-          {/* Gradient side (4/5) */}
+        <section className="rounded-3xl mb-8 sm:mb-12 overflow-hidden flex">
+          {/* Gradient side */}
           <div
-            className="relative flex-1 px-10 lg:px-16 py-14 lg:py-18 overflow-hidden"
+            className="relative flex-1 px-5 sm:px-10 lg:px-16 py-8 sm:py-14 lg:py-18 overflow-hidden"
             style={{
               background: `linear-gradient(135deg, ${project.color} 0%, color-mix(in srgb, ${project.color} 70%, #000) 100%)`,
             }}
@@ -98,7 +98,7 @@ export default function ProjectDetailPage() {
                 <span className="material-symbols-outlined text-xs">chevron_right</span>
                 <span className="text-white/60">{project.name}</span>
               </nav>
-              <h1 className="text-4xl lg:text-6xl font-black tracking-tighter font-headline leading-[0.95] text-white mb-4">
+              <h1 className="text-2xl sm:text-4xl lg:text-6xl font-black tracking-tighter font-headline leading-[0.95] text-white mb-4">
                 {project.name} <span className="text-white/50">Portal</span>
               </h1>
               <p className="text-white/45 text-base max-w-2xl leading-relaxed">
@@ -107,7 +107,7 @@ export default function ProjectDetailPage() {
             </div>
           </div>
           {/* White logo panel (1/5) */}
-          <div className="w-56 lg:w-64 bg-white flex items-center justify-center shrink-0 p-8 relative">
+          <div className="hidden sm:flex w-40 md:w-56 lg:w-64 bg-white items-center justify-center shrink-0 p-6 sm:p-8 relative">
             {/* Bookmark ribbon */}
             <svg
               className="absolute top-0 right-5 w-9 h-14 drop-shadow-md"

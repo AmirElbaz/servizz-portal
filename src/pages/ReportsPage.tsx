@@ -55,7 +55,7 @@ export default function ReportsPage() {
 
   if (loading) {
     return (
-      <DashboardLayout>
+      <DashboardLayout featuredProject={project ?? undefined}>
         <div className="flex items-center justify-center h-64">
           <p className="text-on-surface-variant/60 text-sm">Loading…</p>
         </div>
@@ -74,12 +74,12 @@ export default function ReportsPage() {
   }
 
   return (
-    <DashboardLayout>
+    <DashboardLayout featuredProject={project}>
       <div style={{ "--accent": project.color } as React.CSSProperties}>
         {/* ── Hero Banner: gradient + white logo panel ── */}
-        <section className="rounded-3xl mb-12 overflow-hidden flex">
+        <section className="rounded-3xl mb-8 sm:mb-12 overflow-hidden flex">
           <div
-            className="relative flex-1 px-10 lg:px-16 py-10 lg:py-14 overflow-hidden"
+            className="relative flex-1 px-5 sm:px-10 lg:px-16 py-6 sm:py-10 lg:py-14 overflow-hidden"
             style={{
               background: `linear-gradient(135deg, ${project.color} 0%, color-mix(in srgb, ${project.color} 70%, #000) 100%)`,
             }}
@@ -107,12 +107,12 @@ export default function ReportsPage() {
                 <span className="material-symbols-outlined text-xs">chevron_right</span>
                 <span className="text-white/60">{selectedDept.name}</span>
               </nav>
-              <h1 className="text-3xl lg:text-5xl font-black tracking-tighter font-headline leading-[0.95] text-white">
+              <h1 className="text-xl sm:text-3xl lg:text-5xl font-black tracking-tighter font-headline leading-[0.95] text-white">
                 {project.name} <span className="text-white/50">Portal</span>
               </h1>
             </div>
           </div>
-          <div className="w-48 lg:w-56 bg-white flex items-center justify-center shrink-0 p-6 relative">
+          <div className="hidden sm:flex w-36 md:w-48 lg:w-56 bg-white items-center justify-center shrink-0 p-4 sm:p-6 relative">
             <svg
               className="absolute top-0 right-4 w-8 h-12 drop-shadow-md"
               viewBox="0 0 36 56"

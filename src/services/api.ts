@@ -91,10 +91,12 @@ export function fetchGroupedData(
 export function fetchChartData(
   dateFrom: string,
   dateTo: string,
-  project?: string
+  project?: string,
+  mode = "daily",
+  intervalWidth = 15
 ): Promise<ChartPoint[]> {
   const p = project ? `&project=${project}` : "";
-  return request(`/SkillsetReport/chart?dateFrom=${dateFrom}&dateTo=${dateTo}${p}`);
+  return request(`/SkillsetReport/chart?dateFrom=${dateFrom}&dateTo=${dateTo}${p}&mode=${mode}&intervalWidth=${intervalWidth}`);
 }
 
 export function fetchSummary(

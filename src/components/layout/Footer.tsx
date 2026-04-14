@@ -35,8 +35,8 @@ export default function Footer({ variant = "dashboard" }: FooterProps) {
   }
 
   return (
-    <footer className="w-full py-10 flex flex-col md:flex-row justify-between items-center px-6 lg:px-12 max-w-7xl mx-auto">
-      <div className="flex items-center gap-3 mb-4 md:mb-0">
+    <footer className="w-full py-10 flex justify-center items-center px-6 lg:px-12 max-w-7xl mx-auto">
+      <div className="flex items-center gap-3">
         <img src={centrcomLogo} alt="Centrecom" className="h-6 w-auto" />
         <span className="text-[11px] font-semibold tracking-wider uppercase text-on-surface-variant/60">
           &copy; 2024{" "}
@@ -50,17 +50,6 @@ export default function Footer({ variant = "dashboard" }: FooterProps) {
           </a>
           . Unified Gateway.
         </span>
-      </div>
-      <div className="flex gap-8 items-center">
-        {["Privacy", "Terms", "Contact"].map((link) => (
-          <a
-            key={link}
-            className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/50 hover:text-primary transition-colors"
-            href="#"
-          >
-            {link}
-          </a>
-        ))}
       </div>
     </footer>
   );
