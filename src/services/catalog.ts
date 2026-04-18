@@ -69,3 +69,14 @@ export function getLogoUrl(filename: string | null | undefined): string {
   if (!filename) return "";
   return `/logos/${filename}`;
 }
+
+// Resolves a stored department icon value to an <img> src URL when the value
+// looks like an uploaded filename (contains a `.`). Returns null when the
+// value is empty or looks like a Material Symbols icon name — in which case
+// the caller should render it as `<span className="material-symbols-outlined">`
+// instead. Used by ProjectDetailPage, ReportsPage, and the admin panel.
+export function departmentIconUrl(icon: string | null | undefined): string | null {
+  if (!icon) return null;
+  if (!icon.includes(".")) return null;
+  return `${BASE_URL}/Catalog/department-icons/${encodeURIComponent(icon)}`;
+}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import DashboardLayout from "../components/layout/DashboardLayout";
+import DepartmentIcon from "../components/DepartmentIcon";
 import type { Project } from "../data/projects";
 import {
   fetchCatalogProject,
@@ -145,9 +146,7 @@ export default function ProjectDetailPage() {
                 />
                 <div className="relative">
                   <div className="w-14 h-14 bg-surface-container-high rounded-2xl flex items-center justify-center mx-auto mb-4 text-on-surface-variant group-hover:bg-accent group-hover:text-white transition-all duration-300 group-hover:scale-110">
-                    <span className="material-symbols-outlined text-[24px]">
-                      {dept.icon}
-                    </span>
+                    <DepartmentIcon icon={dept.icon} size={24} />
                   </div>
                   <h5 className="font-bold text-on-surface text-sm">{dept.name}</h5>
                 </div>

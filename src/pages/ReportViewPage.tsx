@@ -246,7 +246,29 @@ export default function ReportViewPage() {
   }
 
   const isRaw = viewMode === "raw";
-  const activeGroupedColumns = getGroupedColumns(viewMode, groupBySkillset);
+
+  // The full canonical column list for the current mode — defines the display
+  // order and labels. We filter it below against the actual response rows so
+  // columns the caller's policy doesn't grant are hidden entirely rather than
+  // rendered as empty cells.
+  const allGroupedColumns = getGroupedColumns(viewMode, groupBySkillset);
+  const activeGroupedColumns = (() => {
+    // No rows yet (first load, empty state, or loading): keep the full set so
+    // the empty-state row can span the correct colSpan and the table skeleton
+    // renders a full header.
+    if (groupedRows.length === 0) return allGroupedColumns;
+
+    const available = new Set(Object.keys(groupedRows[0] as object));
+    return allGroupedColumns.filter((col) => {
+      // ServiceLevel is computed client-side from Offered/Answered — it is not
+      // a real column in the SQL response, so it isn't controlled by the
+      // column policy directly. Show it when both of its inputs are visible.
+      if (col.key === "ServiceLevel") {
+        return available.has("Offered") && available.has("Answered");
+      }
+      return available.has(col.key as string);
+    });
+  })();
 
   const pieData = [
     { name: "Answered", value: summary.answered },

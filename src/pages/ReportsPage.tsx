@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import DashboardLayout from "../components/layout/DashboardLayout";
+import DepartmentIcon from "../components/DepartmentIcon";
 import type { Project } from "../data/projects";
 import {
   fetchCatalogProject,
@@ -147,16 +148,11 @@ export default function ReportsPage() {
                       : undefined
                   }
                 >
-                  <span
-                    className="material-symbols-outlined text-[18px]"
-                    style={
-                      isSelected
-                        ? { fontVariationSettings: "'FILL' 1" }
-                        : undefined
-                    }
-                  >
-                    {dept.icon}
-                  </span>
+                  <DepartmentIcon
+                    icon={dept.icon}
+                    size={18}
+                    symbolStyle={isSelected ? { fontVariationSettings: "'FILL' 1" } : undefined}
+                  />
                   {dept.name}
                 </Link>
               );

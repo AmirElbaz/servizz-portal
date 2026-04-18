@@ -7,6 +7,7 @@ export interface User {
   email: string | null;
   role: string | null;
   projectName: string | null;
+  isAdmin: boolean;
 }
 
 interface AuthContextType {
@@ -24,7 +25,10 @@ import { API_BASE_URL as BASE_URL } from "./config";
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(() => {
     const stored = localStorage.getItem("user");
-    return stored ? JSON.parse(stored) : null;
+    if (!stored) return null;
+    const parsed = JSON.parse(stored);
+    // Back-fill isAdmin for sessions saved before the field existed.
+    return { isAdmin: false, ...parsed } as User;
   });
   const [token, setToken] = useState<string | null>(() =>
     localStorage.getItem("token")

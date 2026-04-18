@@ -9,17 +9,25 @@ export interface DashboardData {
   featuredProject: Project | null;
   heroStats: DashboardSummaryData | null;
   isLoading: boolean;
+  error: string | null;
 }
 
 export function useDashboardData(): DashboardData {
   const [projects, setProjects] = useState<Project[]>([]);
   const [heroStats, setHeroStats] = useState<DashboardSummaryData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchCatalogProjects()
-      .then((list) => setProjects(list.map(adaptProject)))
-      .catch((err) => console.error("Failed to load projects:", err))
+      .then((list) => {
+        setProjects(list.map(adaptProject));
+        setError(null);
+      })
+      .catch((err) => {
+        console.error("Failed to load projects:", err);
+        setError(err instanceof Error ? err.message : "Failed to load projects");
+      })
       .finally(() => setIsLoading(false));
   }, []);
 
@@ -41,5 +49,5 @@ export function useDashboardData(): DashboardData {
       .catch(() => {});
   }, [featuredProject]);
 
-  return { projects, featuredProject, heroStats, isLoading };
+  return { projects, featuredProject, heroStats, isLoading, error };
 }
