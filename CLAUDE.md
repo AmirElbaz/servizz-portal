@@ -67,7 +67,7 @@ requirement unless the user explicitly overrides it for a specific task.
 
 - The theme lives in `src/index.css` under `@theme`. Use only the defined
   CSS variables: `bg-primary`, `text-on-surface-variant`, `border-error`,
-  `bg-surface-container-high`, etc. No raw `#1d5fa8`, no arbitrary Tailwind
+  `bg-surface-container-high`, etc. No raw `#2eb2ff`, no arbitrary Tailwind
   colors like `bg-blue-500`.
 - Exceptions: `ViewBadge.tsx` uses Tailwind's color scales for its hash-picked
   palette. That is the only place arbitrary color scales are permitted — and

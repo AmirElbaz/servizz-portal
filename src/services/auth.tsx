@@ -4,10 +4,13 @@ export interface User {
   id: number;
   username: string;
   fullName: string | null;
+  firstName: string | null;
+  lastName: string | null;
   email: string | null;
   role: string | null;
   projectName: string | null;
   isAdmin: boolean;
+  requiresSignupCompletion: boolean;
 }
 
 interface AuthContextType {
@@ -16,6 +19,11 @@ interface AuthContextType {
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
   isAuthenticated: boolean;
+  completeSignup: (
+    firstName: string,
+    lastName: string,
+    newPassword: string
+  ) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>(null!);
@@ -27,8 +35,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const stored = localStorage.getItem("user");
     if (!stored) return null;
     const parsed = JSON.parse(stored);
-    // Back-fill isAdmin for sessions saved before the field existed.
-    return { isAdmin: false, ...parsed } as User;
+    // Back-fill fields added over time. Sessions saved before a field
+    // existed need sensible defaults so route guards don't misfire.
+    return {
+      isAdmin: false,
+      requiresSignupCompletion: false,
+      firstName: null,
+      lastName: null,
+      ...parsed,
+    } as User;
   });
   const [token, setToken] = useState<string | null>(() =>
     localStorage.getItem("token")
@@ -68,8 +83,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("user");
   }
 
+  // Admin-invited users sign in with a temp password, then hit this to
+  // finish their profile and pick a permanent password. The backend issues
+  // a fresh JWT in the response so we don't force a round-trip re-login.
+  async function completeSignup(firstName: string, lastName: string, newPassword: string) {
+    const res = await fetch(`${BASE_URL}/Auth/complete-signup`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ firstName, lastName, newPassword }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => null);
+      throw new Error(err?.message ?? "Failed to complete signup");
+    }
+
+    const data = await res.json();
+    setToken(data.token);
+    setUser(data.user);
+  }
+
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, isAuthenticated: !!token }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        token,
+        login,
+        logout,
+        isAuthenticated: !!token,
+        completeSignup,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

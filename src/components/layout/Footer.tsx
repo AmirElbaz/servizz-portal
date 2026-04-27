@@ -35,10 +35,10 @@ export default function Footer({ variant = "dashboard" }: FooterProps) {
   }
 
   return (
-    <footer className="w-full py-10 flex justify-center items-center px-6 lg:px-12 max-w-7xl mx-auto">
-      <div className="flex items-center gap-3">
-        <img src={centrcomLogo} alt="Centrecom" className="h-6 w-auto" />
-        <span className="text-[11px] font-semibold tracking-wider uppercase text-on-surface-variant/60">
+    <footer className="w-full py-5 px-6 lg:px-12 max-w-[90rem] mx-auto flex justify-between items-center gap-6">
+      <div className="flex items-center gap-3 min-w-0">
+        <img src={centrcomLogo} alt="Centrecom" className="h-5 w-auto shrink-0" />
+        <span className="text-[10px] font-semibold tracking-wider uppercase text-on-surface-variant/50 truncate">
           &copy; 2024{" "}
           <a
             href="https://www.centrecom.eu"
@@ -50,6 +50,17 @@ export default function Footer({ variant = "dashboard" }: FooterProps) {
           </a>
           . Unified Gateway.
         </span>
+      </div>
+      <div className="flex gap-5 shrink-0">
+        {["Privacy", "Terms", "Accessibility"].map((link) => (
+          <a
+            key={link}
+            className="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/40 hover:text-on-surface-variant/80 transition-colors"
+            href="#"
+          >
+            {link}
+          </a>
+        ))}
       </div>
     </footer>
   );

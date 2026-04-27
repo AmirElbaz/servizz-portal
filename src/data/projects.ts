@@ -20,8 +20,8 @@ export const projects: Project[] = [
       "The Department of Social Security initiative is a strategic digital transformation designed to consolidate social security services into a single, user-centric ecosystem for simplified benefit management.",
     icon: "security",
     logo: "/logos/DSS.png",
-    color: "#1d5fa8",
-    hoverBorderColor: "hover:border-[#1d5fa8]/40",
+    color: "#2eb2ff",
+    hoverBorderColor: "hover:border-[#2eb2ff]/40",
   },
   {
     id: "ird",

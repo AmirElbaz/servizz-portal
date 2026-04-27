@@ -1,35 +1,46 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import DashboardLayout from "../components/layout/DashboardLayout";
-import DepartmentIcon from "../components/DepartmentIcon";
 import type { Project } from "../data/projects";
 import {
   fetchCatalogProject,
-  fetchCatalogDepartments,
+  fetchCatalogDepartmentProjectReports,
   getLogoUrl,
-  type CatalogDepartment,
+  onProjectLogoError,
+  type CatalogReportSummary,
 } from "../services/catalog";
+import { pushRecentItem } from "../hooks/useRecentItems";
+import BackLink from "../components/ui/BackLink";
 
+// Department-first adaptation: the URL now carries BOTH a department code and
+// a project code (/department/:deptCode/project/:projectCode). The departments
+// grid is gone — a project's detail page shows its reports directly. The
+// intermediate "department inside project" concept doesn't exist in the new
+// model.
 export default function ProjectDetailPage() {
-  const { projectCode } = useParams<{ projectCode: string }>();
+  const { deptCode, projectCode } = useParams<{
+    deptCode: string;
+    projectCode: string;
+  }>();
   const [project, setProject] = useState<Project | null>(null);
-  const [departments, setDepartments] = useState<CatalogDepartment[]>([]);
+  const [reports, setReports] = useState<CatalogReportSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
     if (projectCode) localStorage.setItem("last-project", projectCode);
-  }, [projectCode]);
+    if (deptCode) localStorage.setItem("last-department", deptCode);
+  }, [projectCode, deptCode]);
 
   useEffect(() => {
-    if (!projectCode) return;
+    if (!projectCode || !deptCode) return;
     setLoading(true);
     setNotFound(false);
     Promise.all([
       fetchCatalogProject(projectCode),
-      fetchCatalogDepartments(projectCode),
+      fetchCatalogDepartmentProjectReports(deptCode, projectCode),
     ])
-      .then(([p, depts]) => {
+      .then(([p, rpts]) => {
         setProject({
           id: p.code,
           code: p.shortLabel,
@@ -41,15 +52,25 @@ export default function ProjectDetailPage() {
           color: p.colorHex,
           hoverBorderColor: "",
         });
-        setDepartments(depts);
+        setReports(rpts);
+        if (deptCode) {
+          pushRecentItem({
+            kind: "project",
+            id: `${deptCode}/${p.code}`,
+            label: p.displayName,
+            sublabel: p.shortLabel,
+            icon: p.icon || "folder",
+            href: `/department/${deptCode}/project/${p.code}`,
+          });
+        }
       })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
-  }, [projectCode]);
+  }, [projectCode, deptCode]);
 
   if (loading) {
     return (
-      <DashboardLayout featuredProject={project ?? undefined}>
+      <DashboardLayout>
         <div className="flex items-center justify-center h-64">
           <p className="text-on-surface-variant/60 text-sm">Loading…</p>
         </div>
@@ -68,11 +89,15 @@ export default function ProjectDetailPage() {
   }
 
   return (
-    <DashboardLayout featuredProject={project}>
+    <DashboardLayout>
       <div style={{ "--accent": project.color } as React.CSSProperties}>
-        {/* ── Hero Banner: gradient + white logo panel ── */}
+        <BackLink
+          to={deptCode ? `/department/${deptCode}` : "/dashboard"}
+          label="Back to Department"
+        />
+
+        {/* ── Hero Banner ── */}
         <section className="rounded-3xl mb-8 sm:mb-12 overflow-hidden flex">
-          {/* Gradient side */}
           <div
             className="relative flex-1 px-5 sm:px-10 lg:px-16 py-8 sm:py-14 lg:py-18 overflow-hidden"
             style={{
@@ -92,12 +117,19 @@ export default function ProjectDetailPage() {
               }}
             />
             <div className="relative z-10">
-              <nav className="flex items-center gap-2 mb-6 text-[10px] font-bold text-white/40 uppercase tracking-[0.2em]">
+              <nav className="flex items-center gap-2 mb-6 eyebrow-sm text-white/40">
                 <Link to="/dashboard" className="hover:text-white/70 transition-colors no-underline text-white/40">
-                  Servizz.gov
+                  Dashboard
                 </Link>
                 <span className="material-symbols-outlined text-xs">chevron_right</span>
-                <span className="text-white/60">{project.name}</span>
+                <Link
+                  to={`/department/${deptCode}`}
+                  className="hover:text-white/70 transition-colors no-underline text-white/40"
+                >
+                  {deptCode}
+                </Link>
+                <span className="material-symbols-outlined text-xs">chevron_right</span>
+                <span className="text-white/70">{project.name}</span>
               </nav>
               <h1 className="text-2xl sm:text-4xl lg:text-6xl font-black tracking-tighter font-headline leading-[0.95] text-white mb-4">
                 {project.name} <span className="text-white/50">Portal</span>
@@ -107,9 +139,7 @@ export default function ProjectDetailPage() {
               </p>
             </div>
           </div>
-          {/* White logo panel (1/5) */}
           <div className="hidden sm:flex w-40 md:w-56 lg:w-64 bg-white items-center justify-center shrink-0 p-6 sm:p-8 relative">
-            {/* Bookmark ribbon */}
             <svg
               className="absolute top-0 right-5 w-9 h-14 drop-shadow-md"
               viewBox="0 0 36 56"
@@ -120,39 +150,50 @@ export default function ProjectDetailPage() {
                 style={{ fill: `color-mix(in srgb, ${project.color} 70%, black)` }}
               />
             </svg>
-            <img src={project.logo} alt={project.name} className="w-28 lg:w-36 object-contain relative z-10" />
+            <img src={project.logo} onError={onProjectLogoError} alt={project.name} className="w-28 lg:w-36 object-contain relative z-10" />
           </div>
         </section>
 
-        {/* ── Departments ── */}
+        {/* ── Reports ── */}
         <section>
           <h2 className="text-xl font-bold font-headline text-on-surface tracking-tight mb-6">
-            Departments
+            Reports
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {departments.map((dept) => (
-              <Link
-                key={dept.code}
-                to={`/project/${projectCode}/department/${dept.code}`}
-                className="group relative bg-white rounded-2xl p-7 text-center no-underline card-lift overflow-hidden border border-transparent hover:border-accent-50"
-                style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
-              >
-                {/* Hover glow */}
-                <div
-                  className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
-                  style={{
-                    boxShadow: `0 0 40px ${project.color}15`,
-                  }}
-                />
-                <div className="relative">
-                  <div className="w-14 h-14 bg-surface-container-high rounded-2xl flex items-center justify-center mx-auto mb-4 text-on-surface-variant group-hover:bg-accent group-hover:text-white transition-all duration-300 group-hover:scale-110">
-                    <DepartmentIcon icon={dept.icon} size={24} />
+          {reports.length === 0 ? (
+            <div className="prism-surface rounded-2xl p-10 text-center">
+              <p className="text-sm text-on-surface-variant/60">
+                No reports are available in this project for your access level.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {reports.map((r) => (
+                <Link
+                  key={r.code}
+                  to={`/department/${deptCode}/project/${projectCode}/report/${r.code}`}
+                  className="group prism-surface relative rounded-2xl p-6 no-underline card-lift overflow-hidden hover:border-accent-50"
+                >
+                  <div
+                    className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+                    style={{ boxShadow: `0 0 40px ${project.color}15` }}
+                  />
+                  <div className="relative">
+                    <div className="w-12 h-12 bg-surface-container-high rounded-xl flex items-center justify-center mb-3 text-on-surface-variant group-hover:bg-accent group-hover:text-white transition-all duration-300">
+                      <span className="material-symbols-outlined text-[22px]">
+                        {r.icon || "bar_chart"}
+                      </span>
+                    </div>
+                    <h5 className="font-bold text-on-surface text-sm mb-1">{r.name}</h5>
+                    {r.description && (
+                      <p className="text-[11px] text-on-surface-variant/60 leading-relaxed">
+                        {r.description}
+                      </p>
+                    )}
                   </div>
-                  <h5 className="font-bold text-on-surface text-sm">{dept.name}</h5>
-                </div>
-              </Link>
-            ))}
-          </div>
+                </Link>
+              ))}
+            </div>
+          )}
         </section>
       </div>
     </DashboardLayout>

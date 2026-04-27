@@ -8,6 +8,7 @@ import {
   fetchCatalogDepartments,
   fetchCatalogReports,
   getLogoUrl,
+  onProjectLogoError,
   type CatalogDepartment,
   type CatalogReport,
 } from "../services/catalog";
@@ -56,7 +57,7 @@ export default function ReportsPage() {
 
   if (loading) {
     return (
-      <DashboardLayout featuredProject={project ?? undefined}>
+      <DashboardLayout>
         <div className="flex items-center justify-center h-64">
           <p className="text-on-surface-variant/60 text-sm">Loading…</p>
         </div>
@@ -75,7 +76,7 @@ export default function ReportsPage() {
   }
 
   return (
-    <DashboardLayout featuredProject={project}>
+    <DashboardLayout>
       <div style={{ "--accent": project.color } as React.CSSProperties}>
         {/* ── Hero Banner: gradient + white logo panel ── */}
         <section className="rounded-3xl mb-8 sm:mb-12 overflow-hidden flex">
@@ -124,7 +125,7 @@ export default function ReportsPage() {
                 style={{ fill: `color-mix(in srgb, ${project.color} 70%, black)` }}
               />
             </svg>
-            <img src={project.logo} alt={project.name} className="w-24 lg:w-32 object-contain relative z-10" />
+            <img src={project.logo} onError={onProjectLogoError} alt={project.name} className="w-24 lg:w-32 object-contain relative z-10" />
           </div>
         </section>
 
@@ -175,7 +176,7 @@ export default function ReportsPage() {
 
           <div className="space-y-3">
             {reports.length === 0 && (
-              <div className="bg-white rounded-2xl p-8 text-center text-on-surface-variant/60 text-sm" style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+              <div className="prism-surface rounded-2xl p-8 text-center text-on-surface-variant/60 text-sm">
                 No reports available in this department yet.
               </div>
             )}

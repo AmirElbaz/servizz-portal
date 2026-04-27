@@ -7,15 +7,17 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="bg-surface min-h-screen flex items-center justify-center relative overflow-hidden">
-      {/* ── Animated Gradient Blobs ── */}
+    <div className="bg-surface min-h-screen relative overflow-hidden flex flex-col">
+      {/* ── Animated Brand-Blue Blobs (monochromatic, on-palette) ── */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-[20%] -right-[10%] w-[50%] h-[60%] rounded-full bg-primary/8 blur-[150px] animate-blob1" />
-        <div className="absolute -bottom-[15%] -left-[10%] w-[45%] h-[55%] rounded-full bg-tertiary/8 blur-[130px] animate-blob2" />
+        <div className="absolute -top-[20%] -right-[10%] w-[50%] h-[60%] rounded-full bg-primary/10 blur-[150px] animate-blob1" />
+        <div className="absolute -bottom-[15%] -left-[10%] w-[45%] h-[55%] rounded-full bg-primary/6 blur-[130px] animate-blob2" />
+        <div className="absolute top-[30%] left-[20%] w-[30%] h-[40%] rounded-full bg-primary-container/40 blur-[120px] animate-blob3" />
       </div>
 
       {/* ── Subtle Grid ── */}
       <div
+        aria-hidden
         className="absolute inset-0 opacity-[0.03]"
         style={{
           backgroundImage:
@@ -24,148 +26,96 @@ export default function ForgotPasswordPage() {
         }}
       />
 
-      {/* ── Branding ── */}
-      <div className="absolute top-8 left-10 z-20 flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary-dim flex items-center justify-center shadow-lg shadow-primary/20">
-          <span
-            className="material-symbols-outlined text-white text-xl"
-            style={{ fontVariationSettings: "'FILL' 1" }}
-          >
-            hub
-          </span>
-        </div>
-        <div>
-          <div className="text-on-surface font-headline font-bold text-sm tracking-tight">
-            Centercom | Servizz.gov
-          </div>
-          <div className="text-on-surface-variant/50 text-[10px] tracking-[0.2em] uppercase font-medium">
-            Unified Portal
-          </div>
-        </div>
-      </div>
-
-      {/* ── Card ── */}
-      <div className="relative z-10 w-full max-w-md mx-4">
-        {/* Heading above card */}
-        <div className="mb-8">
-          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-on-surface-variant/40 mb-4">
-            Account Recovery
-          </p>
-          <h1 className="text-4xl font-extrabold text-on-surface font-headline tracking-tight leading-[1.1]">
-            Recover your{" "}
-            <span className="gradient-text-dark">account.</span>
-          </h1>
-          <p className="mt-4 text-on-surface-variant/55 text-sm leading-relaxed max-w-sm">
-            Enter your email below and we'll send a secure verification link to
-            regain access to your portal.
-          </p>
-        </div>
-
-        <div className="bg-white rounded-3xl overflow-hidden shadow-[0_20px_60px_-15px_rgba(0,0,0,0.08)] border border-on-surface-variant/5">
-          {/* Card Header */}
-          <div className="px-8 py-5 border-b border-on-surface-variant/6 flex justify-between items-center bg-surface-container-low/50">
-            <div>
-              <span className="text-sm font-bold font-headline text-on-surface">
-                Unified Portal
-              </span>
-              <span className="text-[10px] uppercase tracking-widest text-on-surface-variant/40 block">
-                Identity Management
-              </span>
-            </div>
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-primary-dim flex items-center justify-center shadow-md shadow-primary/20">
+      {/* ── Centered Single-Card Composition ── */}
+      <div className="relative z-10 flex-1 flex items-center justify-center px-4 py-8">
+        <div className="w-full max-w-[520px]">
+          {/* Wordmark above the card */}
+          <div className="flex flex-col items-center mb-8">
+            <img
+              src="/centrecom-logo.svg"
+              alt="Centrecom"
+              className="h-9 md:h-10 w-auto mb-4"
+            />
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/8 border border-primary/15">
               <span
-                className="material-symbols-outlined text-white text-[16px]"
+                className="material-symbols-outlined text-primary text-[14px]"
                 style={{ fontVariationSettings: "'FILL' 1" }}
               >
-                security
+                lock_reset
               </span>
+              <span className="eyebrow text-primary">Account Recovery</span>
             </div>
           </div>
 
-          <div className="p-8">
-            <form className="space-y-5" onSubmit={handleSubmit}>
-              <div className="space-y-2">
-                <label className="block text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/60">
-                  Email Address or Username
-                </label>
-                <div className="relative group">
-                  <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/30 group-focus-within:text-primary transition-colors text-[20px]">
-                    alternate_email
-                  </span>
-                  <input
-                    className="w-full pl-12 pr-4 py-3.5 bg-surface-container-high/60 rounded-xl border border-on-surface-variant/8 text-on-surface placeholder:text-on-surface-variant/30 font-medium text-sm focus:outline-none focus:border-primary/30 focus:bg-white focus:shadow-[0_0_20px_rgba(29,95,168,0.08)] transition-all"
-                    placeholder="e.g. john.doe@example.com"
-                    type="text"
-                  />
-                </div>
-                <p className="text-[11px] text-on-surface-variant/40 mt-2 px-1 flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-[13px]">info</span>
-                  Ensure this is the email associated with your Servizz.gov account.
+          {/* Card */}
+          <div className="bg-white rounded-3xl p-8 md:p-10 relative overflow-hidden shadow-[0_20px_60px_-15px_rgba(0,0,0,0.08)] border border-on-surface-variant/5">
+            <div className="absolute -top-20 -right-20 w-40 h-40 bg-primary/5 rounded-full blur-[60px] pointer-events-none" />
+
+            <div className="relative">
+              <div className="mb-6 text-center">
+                <h1 className="text-3xl md:text-4xl font-extrabold text-on-surface font-headline tracking-tight mb-2 leading-tight">
+                  Forgot password?
+                </h1>
+                <p className="text-on-surface-variant/60 text-sm max-w-sm mx-auto">
+                  Enter the email linked to your Servizz.gov account — we'll send
+                  you a secure reset link.
                 </p>
               </div>
 
-              <button
-                className="w-full bg-gradient-to-r from-primary to-primary-dim text-white font-bold py-4 px-6 rounded-xl shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 hover:opacity-95 transition-all flex items-center justify-center gap-2 group text-sm"
-                type="submit"
-              >
-                <span>Send Reset Link</span>
-                <span className="material-symbols-outlined text-lg group-hover:translate-x-1 transition-transform">
-                  arrow_forward
-                </span>
-              </button>
-            </form>
+              <form className="space-y-5" onSubmit={handleSubmit}>
+                <div className="space-y-2">
+                  <label className="eyebrow-sm block text-on-surface-variant/60">
+                    Email Address or Username
+                  </label>
+                  <div className="relative group">
+                    <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/30 group-focus-within:text-primary transition-colors text-[20px]">
+                      alternate_email
+                    </span>
+                    <input
+                      className="w-full pl-12 pr-4 py-3.5 bg-surface-container-high/60 rounded-xl border border-on-surface-variant/8 text-on-surface placeholder:text-on-surface-variant/30 font-medium text-sm focus:outline-none focus:border-primary/30 focus:bg-white focus:shadow-[0_0_20px_rgba(46,178,255,0.08)] transition-all"
+                      placeholder="you@centrecom.eu"
+                      type="text"
+                    />
+                  </div>
+                </div>
 
-            <div className="mt-6 pt-6 border-t border-on-surface-variant/8 text-center">
-              <Link
-                className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:text-primary-dim transition-colors group"
-                to="/"
-              >
-                <span className="material-symbols-outlined text-lg group-hover:-translate-x-1 transition-transform">
-                  arrow_back
-                </span>
-                Back to Secure Login
-              </Link>
-            </div>
-          </div>
-        </div>
+                <button
+                  className="btn-brand w-full py-4 rounded-xl font-bold text-sm tracking-wide flex items-center justify-center gap-2 group mt-2"
+                  type="submit"
+                >
+                  <span>Send Reset Link</span>
+                  <span className="material-symbols-outlined text-lg transition-transform group-hover:translate-x-1">
+                    arrow_forward
+                  </span>
+                </button>
+              </form>
 
-        {/* Support Cards */}
-        <div className="mt-6 grid grid-cols-2 gap-3">
-          <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-4 flex items-start gap-3 border border-on-surface-variant/5">
-            <span className="material-symbols-outlined text-primary/40 text-[20px]">
-              support_agent
-            </span>
-            <div>
-              <h4 className="text-[11px] font-bold text-on-surface">Need Help?</h4>
-              <p className="text-[10px] text-on-surface-variant/50 leading-tight mt-0.5">
-                Contact our 24/7 support line.
-              </p>
-            </div>
-          </div>
-          <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-4 flex items-start gap-3 border border-on-surface-variant/5">
-            <span className="material-symbols-outlined text-primary/40 text-[20px]">
-              verified_user
-            </span>
-            <div>
-              <h4 className="text-[11px] font-bold text-on-surface">Privacy</h4>
-              <p className="text-[10px] text-on-surface-variant/50 leading-tight mt-0.5">
-                Encrypted with ISO 27001.
-              </p>
+              <div className="mt-7 pt-6 border-t border-on-surface-variant/8 text-center">
+                <Link
+                  className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:text-primary-dim transition-colors group"
+                  to="/"
+                >
+                  <span className="material-symbols-outlined text-lg group-hover:-translate-x-1 transition-transform">
+                    arrow_back
+                  </span>
+                  Back to Secure Login
+                </Link>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
       {/* ── Footer ── */}
-      <footer className="absolute bottom-0 w-full py-6 flex justify-between items-center px-10 z-10">
-        <span className="text-[11px] tracking-wide text-on-surface-variant/30 font-medium">
-          &copy; 2024 Centercom &amp; Servizz.gov
+      <footer className="relative z-10 w-full py-4 flex flex-col sm:flex-row justify-between items-center gap-2 px-4 md:px-10">
+        <span className="eyebrow-sm tracking-[0.18em] text-on-surface-variant/35">
+          &copy; 2024 Centrecom &amp; Servizz.gov
         </span>
         <div className="flex gap-6">
           {["Privacy", "Terms", "Accessibility"].map((link) => (
             <a
               key={link}
-              className="text-[11px] tracking-wide text-on-surface-variant/30 hover:text-on-surface-variant/60 transition-colors"
+              className="eyebrow-sm tracking-[0.18em] text-on-surface-variant/35 hover:text-on-surface-variant/70 transition-colors"
               href="#"
             >
               {link}

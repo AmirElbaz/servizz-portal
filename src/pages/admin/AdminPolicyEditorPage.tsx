@@ -16,6 +16,8 @@ import {
   setPolicyReports,
   setPolicyColumns,
   setPolicyUsers,
+  setPolicyDirectReports,
+  setPolicyDepartments,
   getStructureSnapshot,
   listUsers,
   getReportSchema,
@@ -48,8 +50,16 @@ export default function AdminPolicyEditorPage() {
   const [allUsers, setAllUsers] = useState<AdminUser[]>([]);
 
   // ── Grant state ──
-  const [grantedPdIds, setGrantedPdIds] = useState<Set<number>>(new Set());
+  // Legacy policy_projects set — the department-first editor doesn't edit
+  // this, but we keep the setter so loadAll can mirror server state into it
+  // (we clear it on every saveAccess). The value is never read.
+  const [, setGrantedPdIds] = useState<Set<number>>(new Set());
   const [grantedPdrIds, setGrantedPdrIds] = useState<Set<number>>(new Set());
+  const [grantedDirectReportIds, setGrantedDirectReportIds] = useState<Set<number>>(new Set());
+  // Whole-department grants (policy_departments). Ticking a department at the
+  // top of the Access tab writes to this set; inside a fully-granted dept,
+  // the leaf pickers are hidden because everything is already granted.
+  const [grantedDepartmentIds, setGrantedDepartmentIds] = useState<Set<number>>(new Set());
   const [grantedUserIds, setGrantedUserIds] = useState<Set<number>>(new Set());
   const [columnGrants, setColumnGrants] = useState<Record<string, Set<string>>>({});
   const [schemas, setSchemas] = useState<Record<string, ReportSchema>>({});
@@ -58,8 +68,11 @@ export default function AdminPolicyEditorPage() {
   // server state at load (or after the most recent successful save). Local
   // state is compared against these snapshots to derive dirty flags.
   const [savedDetails, setSavedDetails] = useState({ name: "", description: "" });
-  const [savedAccessPdIds, setSavedAccessPdIds] = useState<Set<number>>(new Set());
+  // savedAccessPdIds: see grantedPdIds above — setter only, value unused.
+  const [, setSavedAccessPdIds] = useState<Set<number>>(new Set());
   const [savedAccessPdrIds, setSavedAccessPdrIds] = useState<Set<number>>(new Set());
+  const [savedDirectReportIds, setSavedDirectReportIds] = useState<Set<number>>(new Set());
+  const [savedDepartmentIds, setSavedDepartmentIds] = useState<Set<number>>(new Set());
   const [savedUsers, setSavedUsers] = useState<Set<number>>(new Set());
   const [savedColumns, setSavedColumns] = useState<Record<string, Set<string>>>({});
 
@@ -94,6 +107,8 @@ export default function AdminPolicyEditorPage() {
 
         const pdIds = new Set(detail.projectDepartments.map((g) => g.projectDepartmentId));
         const pdrIds = new Set(detail.reports.map((g) => g.projectDepartmentReportId));
+        const directIds = new Set(detail.directReports.map((g) => g.departmentReportId));
+        const deptIds = new Set(detail.departments.map((g) => g.departmentId));
         const userIds = new Set(detail.users.map((u) => u.id));
         const cols = Object.fromEntries(
           Object.entries(detail.columns).map(([k, v]) => [k, new Set(v)])
@@ -101,6 +116,8 @@ export default function AdminPolicyEditorPage() {
 
         setGrantedPdIds(pdIds);
         setGrantedPdrIds(pdrIds);
+        setGrantedDirectReportIds(directIds);
+        setGrantedDepartmentIds(deptIds);
         setGrantedUserIds(userIds);
         setColumnGrants(cols);
 
@@ -108,6 +125,8 @@ export default function AdminPolicyEditorPage() {
         setSavedDetails({ name: detail.name, description: detail.description ?? "" });
         setSavedAccessPdIds(new Set(pdIds));
         setSavedAccessPdrIds(new Set(pdrIds));
+        setSavedDirectReportIds(new Set(directIds));
+        setSavedDepartmentIds(new Set(deptIds));
         setSavedUsers(new Set(userIds));
         setSavedColumns(
           Object.fromEntries(Object.entries(cols).map(([k, v]) => [k, new Set(v)]))
@@ -129,9 +148,12 @@ export default function AdminPolicyEditorPage() {
   // ── Derived dirty flags per tab ──
   const detailsDirty =
     name !== savedDetails.name || description !== savedDetails.description;
+  // Access dirty tracks the whole-department grant set plus the two leaf
+  // grant sets. policy_projects is no longer written from this editor.
   const accessDirty =
-    !setsEqual(grantedPdIds, savedAccessPdIds) ||
-    !setsEqual(grantedPdrIds, savedAccessPdrIds);
+    !setsEqual(grantedDepartmentIds, savedDepartmentIds) ||
+    !setsEqual(grantedPdrIds, savedAccessPdrIds) ||
+    !setsEqual(grantedDirectReportIds, savedDirectReportIds);
   const usersDirty = !setsEqual(grantedUserIds, savedUsers);
   const columnsDirty = !columnGrantsEqual(columnGrants, savedColumns);
   const anyDirty = detailsDirty || accessDirty || usersDirty || columnsDirty;
@@ -196,15 +218,6 @@ export default function AdminPolicyEditorPage() {
   }
 
   // ── Access tab helpers ──
-  function togglePd(pdId: number) {
-    setGrantedPdIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(pdId)) next.delete(pdId);
-      else next.add(pdId);
-      return next;
-    });
-  }
-
   function togglePdr(pdrId: number) {
     setGrantedPdrIds((prev) => {
       const next = new Set(prev);
@@ -214,38 +227,117 @@ export default function AdminPolicyEditorPage() {
     });
   }
 
+  function toggleDirectReport(drId: number) {
+    setGrantedDirectReportIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(drId)) next.delete(drId);
+      else next.add(drId);
+      return next;
+    });
+  }
+
+  // Toggle the whole-department grant. Granting a department is the "give
+  // full access" shortcut: every current and future leaf inside the dept is
+  // accessible without any leaf-level ticks. When a dept is fully granted we
+  // clear any leaf-level ticks inside it since they would be redundant noise
+  // — the user gets everything regardless. Ungranting the dept restores the
+  // normal leaf-level editor.
+  function toggleDepartment(deptId: number) {
+    const turningOn = !grantedDepartmentIds.has(deptId);
+    setGrantedDepartmentIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(deptId)) next.delete(deptId);
+      else next.add(deptId);
+      return next;
+    });
+    if (turningOn && snapshot) {
+      // Drop leaf ticks inside this department; they'd just be stale rows
+      // after save. The dept-level grant supersedes them.
+      const pdIdsInDept = new Set(
+        snapshot.projectDepartments
+          .filter((pd) => pd.departmentId === deptId)
+          .map((pd) => pd.id)
+      );
+      const pdrIdsInDept = new Set(
+        snapshot.placements
+          .filter((pl) => pdIdsInDept.has(pl.projectDepartmentId))
+          .map((pl) => pl.id)
+      );
+      const directInDept = new Set(
+        snapshot.directReports.filter((dr) => dr.departmentId === deptId).map((dr) => dr.id)
+      );
+      if (pdrIdsInDept.size > 0) {
+        setGrantedPdrIds((prev) => {
+          const next = new Set(prev);
+          for (const id of pdrIdsInDept) next.delete(id);
+          return next;
+        });
+      }
+      if (directInDept.size > 0) {
+        setGrantedDirectReportIds((prev) => {
+          const next = new Set(prev);
+          for (const id of directInDept) next.delete(id);
+          return next;
+        });
+      }
+    }
+  }
+
   async function saveAccess() {
     if (!policy) return;
-    // Two sequential writes. Refresh the ETag between them so the second call
-    // carries the freshly-bumped token.
-    const first = await setPolicyProjectDepartments(
+    // Four sequential writes, each forwarding the ETag from the previous
+    // response so concurrent-edit detection stays intact across the chain.
+    //
+    // Order:
+    //   1. policy_departments   — whole-department grants (top-level ticks).
+    //   2. policy_projects      — cleared. The new editor never writes this
+    //                             table; any rows are legacy from the old
+    //                             project-first editor and silently leak
+    //                             department access, so we wipe them each save.
+    //   3. policy_project_reports    — leaf-level grants in projects.
+    //   4. policy_department_reports — leaf-level grants on direct reports.
+    const first = await setPolicyDepartments(
       policy.id,
-      Array.from(grantedPdIds),
+      Array.from(grantedDepartmentIds),
       etag
     );
-    const second = await setPolicyReports(
+    const second = await setPolicyProjectDepartments(policy.id, [], first.etag);
+    const third = await setPolicyReports(
       policy.id,
       Array.from(grantedPdrIds),
-      first.etag
+      second.etag
     );
-    setEtag(second.etag);
-    setSavedAccessPdIds(new Set(grantedPdIds));
+    const fourth = await setPolicyDirectReports(
+      policy.id,
+      Array.from(grantedDirectReportIds),
+      third.etag
+    );
+    setEtag(fourth.etag);
+    setGrantedPdIds(new Set());
+    setSavedAccessPdIds(new Set());
+    setSavedDepartmentIds(new Set(grantedDepartmentIds));
     setSavedAccessPdrIds(new Set(grantedPdrIds));
+    setSavedDirectReportIds(new Set(grantedDirectReportIds));
   }
 
   // ── Columns tab helpers ──
-  // Derive the set of report codes this policy grants — from the granted
-  // report-assignment rows in the Access tab's state.
+  // Derive the set of report codes this policy grants — from both the
+  // project-scoped report grants and the direct-report grants.
   const grantedReportCodes = useMemo(() => {
     if (!snapshot) return [] as string[];
     const placementsById = new Map(snapshot.placements.map((p) => [p.id, p]));
+    const directById = new Map(snapshot.directReports.map((p) => [p.id, p]));
     const codes = new Set<string>();
     for (const pdrId of grantedPdrIds) {
       const p = placementsById.get(pdrId);
       if (p) codes.add(p.reportCode);
     }
+    for (const drId of grantedDirectReportIds) {
+      const p = directById.get(drId);
+      if (p) codes.add(p.reportCode);
+    }
     return Array.from(codes).sort();
-  }, [snapshot, grantedPdrIds]);
+  }, [snapshot, grantedPdrIds, grantedDirectReportIds]);
 
   // Lazy-fetch schema when a report first appears in the granted list.
   useEffect(() => {
@@ -301,20 +393,80 @@ export default function AdminPolicyEditorPage() {
     setSavedUsers(new Set(grantedUserIds));
   }
 
-  // ── Project → departments → placements trees for the Access tab ──
-  const projectsWithChildren = useMemo(() => {
+  // ── Department-first tree for the Access tab ──
+  // Each department contains two parallel lists:
+  //   projects: { project, placements[] } for each project attached to the dept
+  //   directReports: placements with no project layer
+  // Ticking a department is UI-only (expand/collapse). Grants are written at
+  // the leaf checkboxes: placements → policy_project_reports, direct reports
+  // → policy_department_reports. The intermediate policy_projects table is
+  // no longer written from this editor; legacy rows are preserved by the
+  // navigation queries on the backend.
+  const departmentTree = useMemo(() => {
     if (!snapshot) return [];
-    return snapshot.projects.map((project) => {
-      const pdRows = snapshot.projectDepartments.filter((pd) => pd.projectId === project.id);
-      return {
-        project,
-        pdRows: pdRows.map((pd) => ({
-          ...pd,
-          placements: snapshot.placements.filter((pl) => pl.projectDepartmentId === pd.id),
-        })),
-      };
+    const projectById = new Map(snapshot.projects.map((p) => [p.id, p]));
+    return snapshot.departments.map((dept) => {
+      const pdRows = snapshot.projectDepartments.filter((pd) => pd.departmentId === dept.id);
+      const projects = pdRows
+        .map((pd) => {
+          const project = projectById.get(pd.projectId);
+          if (!project) return null;
+          return {
+            project,
+            pd,
+            placements: snapshot.placements.filter((pl) => pl.projectDepartmentId === pd.id),
+          };
+        })
+        .filter((x): x is NonNullable<typeof x> => x !== null);
+      const directReports = snapshot.directReports.filter((dr) => dr.departmentId === dept.id);
+      return { dept, projects, directReports };
     });
+    // Every department is listed — including ones with no content yet. A
+    // whole-department grant is useful for pre-authorizing users before the
+    // admin has set up the dept's content (future templates, records, etc.).
   }, [snapshot]);
+
+  // Track which departments are expanded in the Access tab. UI-only state —
+  // no persistence, no grant implication. Departments with any existing grant
+  // start expanded so admins can see what's there without clicking.
+  const [expandedDeptIds, setExpandedDeptIds] = useState<Set<number>>(new Set());
+  const [expandedProjectKeys, setExpandedProjectKeys] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    if (!snapshot) return;
+    const initialDepts = new Set<number>();
+    const initialProjects = new Set<number>();
+    for (const { dept, projects, directReports } of departmentTree) {
+      const hasDirectGrant = directReports.some((dr) => grantedDirectReportIds.has(dr.id));
+      const grantedProjects = projects.filter((p) =>
+        p.placements.some((pl) => grantedPdrIds.has(pl.id))
+      );
+      if (hasDirectGrant || grantedProjects.length > 0) initialDepts.add(dept.id);
+      for (const gp of grantedProjects) initialProjects.add(gp.pd.id);
+    }
+    setExpandedDeptIds(initialDepts);
+    setExpandedProjectKeys(initialProjects);
+    // Intentionally runs only when the snapshot arrives / policy loads. User
+    // interaction after that takes over.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snapshot, savedAccessPdrIds, savedDirectReportIds]);
+
+  function toggleDeptExpanded(deptId: number) {
+    setExpandedDeptIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(deptId)) next.delete(deptId);
+      else next.add(deptId);
+      return next;
+    });
+  }
+  function toggleProjectExpanded(pdId: number) {
+    setExpandedProjectKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(pdId)) next.delete(pdId);
+      else next.add(pdId);
+      return next;
+    });
+  }
 
   return (
     <AdminLayout>
@@ -499,7 +651,7 @@ export default function AdminPolicyEditorPage() {
                     <div>
                       <h3 className="text-base font-bold text-on-surface">Access</h3>
                       <p className="text-xs text-on-surface-variant/70 mt-0.5">
-                        Choose which departments this policy can see inside each project, then pick the specific reports inside each department.
+                        Tick a department to grant full access to everything inside it (current and future). For finer control, leave the department unticked and expand it to pick specific reports.
                       </p>
                     </div>
                     <SaveButton
@@ -511,75 +663,228 @@ export default function AdminPolicyEditorPage() {
                     </SaveButton>
                   </div>
 
-                  <div className="flex flex-col gap-4">
-                    {projectsWithChildren.map(({ project, pdRows }) => (
-                      <div key={project.id} className="border border-on-surface-variant/10 rounded-xl overflow-hidden">
-                        <div className="px-4 py-3 bg-surface-container-low/60 flex items-center gap-3">
+                  {departmentTree.length === 0 ? (
+                    <p className="text-sm text-on-surface-variant/60 italic">
+                      No departments exist yet. Create one on the Departments page first.
+                    </p>
+                  ) : (
+                    <div className="flex flex-col gap-3">
+                      {departmentTree.map(({ dept, projects, directReports }) => {
+                        const expanded = expandedDeptIds.has(dept.id);
+                        const fullGrant = grantedDepartmentIds.has(dept.id);
+                        const hasAnything = projects.length > 0 || directReports.length > 0;
+                        const grantedLeafCount =
+                          directReports.filter((dr) => grantedDirectReportIds.has(dr.id)).length +
+                          projects.reduce(
+                            (acc, p) =>
+                              acc + p.placements.filter((pl) => grantedPdrIds.has(pl.id)).length,
+                            0
+                          );
+                        return (
                           <div
-                            className="w-2.5 h-2.5 rounded-full shrink-0"
-                            style={{ backgroundColor: project.colorHex }}
-                          />
-                          <h4 className="font-bold text-sm text-on-surface">{project.displayName}</h4>
-                        </div>
-                        {pdRows.length === 0 ? (
-                          <p className="px-4 py-3 text-xs text-on-surface-variant/50 italic">
-                            No departments attached — set up in Project Structure.
-                          </p>
-                        ) : (
-                          <div className="divide-y divide-on-surface-variant/8">
-                            {pdRows.map((pd) => {
-                              const pdGranted = grantedPdIds.has(pd.id);
-                              return (
-                                <div key={pd.id} className="px-4 py-3">
-                                  <label className="flex items-center gap-3 cursor-pointer">
-                                    <input
-                                      type="checkbox"
-                                      checked={pdGranted}
-                                      onChange={() => togglePd(pd.id)}
-                                      className="accent-primary"
-                                    />
-                                    <span className="font-semibold text-sm text-on-surface">
-                                      {pd.departmentName}
+                            key={dept.id}
+                            className={`border rounded-xl overflow-hidden ${
+                              fullGrant
+                                ? "border-primary/25 bg-primary/5"
+                                : "border-on-surface-variant/10"
+                            }`}
+                          >
+                            <div
+                              className={`px-4 py-3 flex items-center gap-3 transition-colors ${
+                                fullGrant
+                                  ? ""
+                                  : expanded
+                                    ? "bg-primary/5"
+                                    : "bg-surface-container-low/60"
+                              }`}
+                            >
+                              {/* Real grant checkbox — writes policy_departments */}
+                              <label className="flex items-center cursor-pointer" title="Grant full access to this department">
+                                <input
+                                  type="checkbox"
+                                  checked={fullGrant}
+                                  onChange={() => toggleDepartment(dept.id)}
+                                  className="accent-primary w-4 h-4"
+                                />
+                              </label>
+                              {/* Expand toggle — disabled while fully granted since the drill-down is hidden */}
+                              <button
+                                type="button"
+                                onClick={() => !fullGrant && hasAnything && toggleDeptExpanded(dept.id)}
+                                disabled={fullGrant || !hasAnything}
+                                className={`flex-1 flex items-center gap-3 text-left ${
+                                  fullGrant || !hasAnything ? "cursor-default" : "cursor-pointer"
+                                }`}
+                              >
+                                <span
+                                  className={`material-symbols-outlined text-[18px] transition-transform ${
+                                    fullGrant || !hasAnything
+                                      ? "text-transparent"
+                                      : expanded
+                                        ? "rotate-90 text-primary"
+                                        : "text-on-surface-variant/50"
+                                  }`}
+                                >
+                                  chevron_right
+                                </span>
+                                <span className="material-symbols-outlined text-on-surface-variant/70 text-[18px]">
+                                  {dept.icon || "folder"}
+                                </span>
+                                <span className="font-bold text-sm text-on-surface flex-1 truncate">
+                                  {dept.name}
+                                </span>
+                                <code className="text-[10px] font-semibold uppercase tracking-wider text-primary/70 bg-primary/5 px-1.5 py-0.5 rounded">
+                                  {dept.code}
+                                </code>
+                                {fullGrant ? (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-primary bg-primary/15 px-2 py-0.5 rounded-full">
+                                    <span
+                                      className="material-symbols-outlined text-[12px]"
+                                      style={{ fontVariationSettings: "'FILL' 1" }}
+                                    >
+                                      done_all
                                     </span>
-                                  </label>
-                                  {pdGranted && pd.placements.length > 0 && (
-                                    <div className="mt-2 ml-7 flex flex-wrap gap-2">
-                                      {pd.placements.map((pl) => {
-                                        const on = grantedPdrIds.has(pl.id);
+                                    Full access
+                                  </span>
+                                ) : grantedLeafCount > 0 ? (
+                                  <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+                                    {grantedLeafCount} granted
+                                  </span>
+                                ) : !hasAnything ? (
+                                  <span className="text-[10px] font-semibold text-on-surface-variant/50 italic">
+                                    empty
+                                  </span>
+                                ) : null}
+                              </button>
+                            </div>
+
+                            {!fullGrant && expanded && hasAnything && (
+                              <div className="border-t border-on-surface-variant/8 divide-y divide-on-surface-variant/8">
+                                {/* Projects inside this department */}
+                                {projects.length > 0 && (
+                                  <div className="p-4 flex flex-col gap-2">
+                                    <p className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60">
+                                      Projects in {dept.name}
+                                    </p>
+                                    {projects.map(({ project, pd, placements }) => {
+                                      const projExpanded = expandedProjectKeys.has(pd.id);
+                                      const projGranted = placements.filter((pl) =>
+                                        grantedPdrIds.has(pl.id)
+                                      ).length;
+                                      return (
+                                        <div
+                                          key={pd.id}
+                                          className="border border-on-surface-variant/10 rounded-lg overflow-hidden"
+                                        >
+                                          <button
+                                            type="button"
+                                            onClick={() => toggleProjectExpanded(pd.id)}
+                                            className={`w-full px-3 py-2.5 flex items-center gap-3 text-left transition-colors ${
+                                              projExpanded
+                                                ? "bg-primary/5"
+                                                : "bg-surface-container-lowest hover:bg-surface-container-low/60"
+                                            } cursor-pointer`}
+                                          >
+                                            <span
+                                              className={`material-symbols-outlined text-[16px] transition-transform ${
+                                                projExpanded
+                                                  ? "rotate-90 text-primary"
+                                                  : "text-on-surface-variant/50"
+                                              }`}
+                                            >
+                                              chevron_right
+                                            </span>
+                                            <div
+                                              className="w-2 h-2 rounded-full shrink-0"
+                                              style={{ backgroundColor: project.colorHex }}
+                                            />
+                                            <span className="font-semibold text-sm text-on-surface flex-1 truncate">
+                                              {project.displayName}
+                                            </span>
+                                            {projGranted > 0 && (
+                                              <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+                                                {projGranted}/{placements.length}
+                                              </span>
+                                            )}
+                                          </button>
+
+                                          {projExpanded && (
+                                            <div className="px-4 py-3 border-t border-on-surface-variant/8 bg-surface-container-lowest/40">
+                                              {placements.length === 0 ? (
+                                                <p className="text-[11px] text-on-surface-variant/50 italic">
+                                                  No reports have been placed in {project.displayName} for {dept.name}. Add them in Catalog Structure.
+                                                </p>
+                                              ) : (
+                                                <div className="flex flex-wrap gap-2">
+                                                  {placements.map((pl) => {
+                                                    const on = grantedPdrIds.has(pl.id);
+                                                    return (
+                                                      <label
+                                                        key={pl.id}
+                                                        className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs cursor-pointer transition-all ${
+                                                          on
+                                                            ? "bg-primary/8 border-primary/25 text-primary font-semibold"
+                                                            : "bg-white border-on-surface-variant/10 text-on-surface-variant hover:bg-surface-container-low/60"
+                                                        }`}
+                                                      >
+                                                        <input
+                                                          type="checkbox"
+                                                          checked={on}
+                                                          onChange={() => togglePdr(pl.id)}
+                                                          className="accent-primary"
+                                                        />
+                                                        {pl.reportName}
+                                                      </label>
+                                                    );
+                                                  })}
+                                                </div>
+                                              )}
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+
+                                {/* Direct reports inside this department */}
+                                {directReports.length > 0 && (
+                                  <div className="p-4">
+                                    <p className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60 mb-2">
+                                      Direct reports in {dept.name}
+                                    </p>
+                                    <div className="flex flex-wrap gap-2">
+                                      {directReports.map((dr) => {
+                                        const on = grantedDirectReportIds.has(dr.id);
                                         return (
                                           <label
-                                            key={pl.id}
+                                            key={dr.id}
                                             className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs cursor-pointer transition-all ${
                                               on
                                                 ? "bg-primary/8 border-primary/25 text-primary font-semibold"
-                                                : "bg-surface-container-low/40 border-on-surface-variant/8 text-on-surface-variant hover:bg-surface-container-low/70"
+                                                : "bg-white border-on-surface-variant/10 text-on-surface-variant hover:bg-surface-container-low/60"
                                             }`}
                                           >
                                             <input
                                               type="checkbox"
                                               checked={on}
-                                              onChange={() => togglePdr(pl.id)}
+                                              onChange={() => toggleDirectReport(dr.id)}
                                               className="accent-primary"
                                             />
-                                            {pl.reportName}
+                                            {dr.reportName}
                                           </label>
                                         );
                                       })}
                                     </div>
-                                  )}
-                                  {pdGranted && pd.placements.length === 0 && (
-                                    <p className="mt-2 ml-7 text-[11px] text-on-surface-variant/50 italic">
-                                      No reports have been added to this department for this project yet.
-                                    </p>
-                                  )}
-                                </div>
-                              );
-                            })}
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
 

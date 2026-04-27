@@ -131,6 +131,14 @@ export interface AdminUser {
 
 export const listUsers = () => request<AdminUser[]>("/Admin/users");
 
+// Admin invitation: creates a new locally-managed user with a temp password
+// and sends them an invitation email. Returns the new user's id.
+export const inviteUser = (email: string) =>
+  request<{ id: number; email: string }>("/Admin/users", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+
 export const setUserAdmin = (id: number, isAdmin: boolean) =>
   request<void>(`/Admin/users/${id}`, {
     method: "PATCH",
@@ -210,6 +218,16 @@ export interface AdminStructureProject {
   displayName: string;
   projectName: string;
   colorHex: string;
+  // Added in migration 016: each project is owned by exactly one dept and
+  // may be assigned to at most one group within that dept.
+  departmentId: number;
+  groupId: number | null;
+}
+export interface AdminProjectGroup {
+  id: number;
+  departmentId: number;
+  name: string;
+  sortOrder: number;
 }
 export interface AdminProjectDepartment {
   id: number;
@@ -230,11 +248,47 @@ export interface AdminReportRow {
   code: string;
   name: string;
 }
+
+// Direct reports placed under a department (no project layer).
+// The department-first counterpart to AdminReportPlacement.
+export interface AdminDirectReportPlacement {
+  id: number;                // department_reports.id
+  departmentId: number;
+  reportId: number;
+  departmentCode: string;
+  departmentName: string;
+  reportCode: string;
+  reportName: string;
+}
+
+// Module catalog entry (from the `modules` table). The admin UI renders one
+// toggle per module on each dept; ticking adds a department_modules row.
+export interface AdminModule {
+  code: string;
+  name: string;
+  description: string | null;
+  icon: string | null;
+  sortOrder: number;
+}
+export interface AdminDepartmentModule {
+  departmentId: number;
+  moduleCode: string;
+  sortOrder: number;
+}
+
 export interface AdminStructureSnapshot {
   projects: AdminStructureProject[];
   projectDepartments: AdminProjectDepartment[];
   placements: AdminReportPlacement[];
   allReports: AdminReportRow[];
+  // Added in the department-first transition:
+  departments: AdminDepartment[];                  // full dept list for the master column
+  directReports: AdminDirectReportPlacement[];     // reports placed directly under departments
+  // Added with the module registry:
+  modules: AdminModule[];                          // all modules the app supports
+  departmentModules: AdminDepartmentModule[];      // which modules each dept has enabled
+  // Added in migration 016:
+  projectGroups: AdminProjectGroup[];              // per-department project groups
 }
 
 export const getStructureSnapshot = () =>
@@ -250,6 +304,34 @@ export const setProjectDepartmentReports = (pdId: number, reportIds: number[]) =
   request<void>(`/Admin/structure/project-departments/${pdId}/reports`, {
     method: "PUT",
     body: JSON.stringify({ reportIds }),
+  });
+
+// Department-first additions ───────────────────────────────────────────────
+
+// Replaces the project set attached to a single department. Complements the
+// legacy setProjectDepartments (which operates per-project).
+export const setDepartmentProjects = (departmentId: number, projectIds: number[]) =>
+  request<void>(`/Admin/structure/departments/${departmentId}/projects`, {
+    method: "PUT",
+    body: JSON.stringify({ projectIds }),
+  });
+
+// Replaces the direct-report set placed under a department. Used by
+// departments without a project layer (HR, IT, Finance).
+export const setDepartmentDirectReports = (departmentId: number, reportIds: number[]) =>
+  request<void>(`/Admin/structure/departments/${departmentId}/direct-reports`, {
+    method: "PUT",
+    body: JSON.stringify({ reportIds }),
+  });
+
+// Replaces the module set enabled on a department. Driving list for what
+// renders on the department landing page (projects section, direct reports
+// section, templates section, …). Does NOT touch module content tables —
+// disabling a module hides its UI; re-enabling restores it with prior content.
+export const setDepartmentModules = (departmentId: number, moduleCodes: string[]) =>
+  request<void>(`/Admin/structure/departments/${departmentId}/modules`, {
+    method: "PUT",
+    body: JSON.stringify({ moduleCodes }),
   });
 
 // ── Policies ─────────────────────────────────────────────────────────────────
@@ -290,6 +372,28 @@ export interface AdminPolicyUser {
   email: string | null;
 }
 
+// Direct-report grant on a policy (department-first addition).
+// Granted via the new policy_department_reports junction.
+export interface AdminPolicyDirectReportGrant {
+  departmentReportId: number;
+  departmentId: number;
+  departmentCode: string;
+  departmentName: string;
+  reportId: number;
+  reportCode: string;
+  reportName: string;
+}
+
+// Whole-department grant on a policy. A row here means "this policy grants
+// access to the entire department as an entity" — all current content AND
+// any future content added later (new reports, templates, records, etc.)
+// without needing to re-tick anything in the editor.
+export interface AdminPolicyDepartmentGrant {
+  departmentId: number;
+  departmentCode: string;
+  departmentName: string;
+}
+
 export interface AdminPolicyDetail {
   id: number;
   code: string;
@@ -301,6 +405,8 @@ export interface AdminPolicyDetail {
   reports: AdminPolicyReportGrant[];
   columns: Record<string, string[]>;
   users: AdminPolicyUser[];
+  directReports: AdminPolicyDirectReportGrant[];   // department-first grants
+  departments: AdminPolicyDepartmentGrant[];       // whole-department grants
 }
 
 export const listPolicies = () => request<AdminPolicyListItem[]>("/Admin/policies");
@@ -371,22 +477,29 @@ export const setPolicyUsers = (id: number, userIds: number[], ifMatch: string | 
     ifMatch,
   });
 
-// ── User sync ────────────────────────────────────────────────────────────────
-// Mirror of the backend's UserSyncService.SyncResult record. Timestamps are
-// ISO strings, duration is the C# TimeSpan string format ("00:00:01.2345678").
+// Replaces the direct-report grant set on a policy. Mirrors setPolicyReports
+// but for the department-first path (no project context).
+export const setPolicyDirectReports = (
+  id: number,
+  departmentReportIds: number[],
+  ifMatch: string | null
+) =>
+  requestWithEtag<void>(`/Admin/policies/${id}/department-reports`, {
+    method: "PUT",
+    body: JSON.stringify({ departmentReportIds }),
+    ifMatch,
+  });
 
-export interface UserSyncResult {
-  startedAt: string;
-  finishedAt: string;
-  duration: string;
-  inserted: number;
-  updated: number;
-  sourceRows: number;
-  error: string | null;
-}
+// Replaces the whole-department grant set on a policy. Top-level ticks in
+// the department-first editor flow through here.
+export const setPolicyDepartments = (
+  id: number,
+  departmentIds: number[],
+  ifMatch: string | null
+) =>
+  requestWithEtag<void>(`/Admin/policies/${id}/departments`, {
+    method: "PUT",
+    body: JSON.stringify({ departmentIds }),
+    ifMatch,
+  });
 
-// Triggers an immediate user sync in addition to the hourly background tick.
-// Admin-only. Server returns 400 + a human message when a sync is already
-// running or when the connection strings are not configured.
-export const triggerUserSync = () =>
-  request<UserSyncResult>("/Admin/sync/users", { method: "POST" });

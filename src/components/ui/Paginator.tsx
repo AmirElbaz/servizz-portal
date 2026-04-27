@@ -97,8 +97,8 @@ export default function Paginator({
               style={
                 p === currentPage
                   ? {
-                      backgroundColor: accentColor ?? "#1d5fa8",
-                      boxShadow: `0 2px 8px ${accentColor ?? "#1d5fa8"}30`,
+                      backgroundColor: accentColor ?? "#2eb2ff",
+                      boxShadow: `0 2px 8px ${accentColor ?? "#2eb2ff"}30`,
                     }
                   : undefined
               }

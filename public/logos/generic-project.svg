@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="none" role="img" aria-label="Project">
+  <rect width="256" height="256" rx="48" fill="#D4EFFF"/>
+  <path
+    d="M52 84c0-8.837 7.163-16 16-16h44.118a16 16 0 0 1 10.95 4.338l14.106 13.24A16 16 0 0 0 148.124 90H188c8.837 0 16 7.163 16 16v68c0 8.837-7.163 16-16 16H68c-8.837 0-16-7.163-16-16V84Z"
+    fill="#2EB2FF"/>
+  <path
+    d="M52 108h152"
+    stroke="#ffffff" stroke-opacity="0.35" stroke-width="2"/>
+</svg>

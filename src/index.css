@@ -3,16 +3,16 @@
 @theme {
   --color-on-secondary-container: #3c5561;
   --color-outline-variant: #a9b4b9;
-  --color-on-primary-container: #00529b;
+  --color-on-primary-container: #003d5c;
   --color-on-error-container: #752121;
   --color-surface-variant: #d9e4ea;
   --color-inverse-on-surface: #9a9d9f;
   --color-secondary: #49636f;
-  --color-surface-tint: #1d5fa8;
+  --color-surface-tint: #2eb2ff;
   --color-surface-container-low: #f0f4f7;
   --color-on-surface-variant: #566166;
   --color-surface: #f8f9fb;
-  --color-on-primary-fixed: #003f7a;
+  --color-on-primary-fixed: #002d47;
   --color-error-dim: #4e0309;
   --color-background: #f8f9fb;
   --color-error: #9f403d;
@@ -24,7 +24,7 @@
   --color-outline: #717c82;
   --color-surface-dim: #cfdce3;
   --color-secondary-fixed: #cbe7f5;
-  --color-primary-container: #d5e3ff;
+  --color-primary-container: #d4efff;
   --color-secondary-fixed-dim: #bdd9e6;
   --color-on-surface: #2a3439;
   --color-on-tertiary-container: #4b4c67;
@@ -33,28 +33,36 @@
   --color-surface-bright: #f8f9fb;
   --color-on-error: #fff7f6;
   --color-surface-container: #e8eff3;
-  --color-primary-fixed-dim: #bed6ff;
-  --color-on-primary: #f6f7ff;
+  --color-primary-fixed-dim: #a8dfff;
+  --color-on-primary: #ffffff;
   --color-on-secondary-fixed-variant: #455f6b;
-  --color-inverse-primary: #77adfc;
-  --color-primary: #1d5fa8;
-  --color-primary-fixed: #d5e3ff;
+  --color-inverse-primary: #77cfff;
+  --color-primary: #2eb2ff;
+  --color-primary-fixed: #d4efff;
   --color-secondary-dim: #3d5762;
   --color-on-secondary: #f2faff;
   --color-surface-container-lowest: #ffffff;
-  --color-primary-dim: #01529b;
+  --color-primary-dim: #0b8dd6;
   --color-tertiary-container: #dbdafb;
   --color-secondary-container: #cbe7f5;
   --color-error-container: #fe8983;
   --color-on-secondary-fixed: #29434e;
   --color-tertiary: #5c5d78;
-  --color-on-primary-fixed-variant: #185ca5;
+  --color-on-primary-fixed-variant: #0a6fa3;
   --color-inverse-surface: #0b0f10;
   --color-tertiary-fixed-dim: #cdccec;
   --color-on-tertiary: #fbf7ff;
   --color-dark-bg: #070b14;
   --color-dark-surface: #0d1322;
   --color-dark-card: #111827;
+
+  /* Success tones — muted teal-green aligned with the cool-leaning palette
+     so "done / completed" states read as a signal without shouting against
+     the primary blue + secondary cyan set. Used by completed status pills,
+     checked-checkbox highlights, saved indicators, and 100%-progress bars. */
+  --color-success: #3f8a6b;
+  --color-success-container: #dcebe1;
+  --color-on-success-container: #1f4a39;
 
   --font-headline: "Public Sans", sans-serif;
   --font-body: "Inter", sans-serif;
@@ -73,16 +81,75 @@
 }
 
 @layer utilities {
+  /* ── Typography tokens ── */
+  /* Canonical eyebrow label. One source of truth for all uppercase
+     small-label lockups across login, dashboard, detail pages, admin. */
+  .eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.28em;
+    line-height: 1;
+  }
+  .eyebrow-sm {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.22em;
+    line-height: 1;
+  }
+
+  /* ── Brand button ── */
+  /* Flat Centrecom Blue with an inset specular line and a soft lifted
+     shadow. Replaces the gradient primary→primary-dim pattern that read as
+     generic SaaS. Use on primary form CTAs. */
+  .btn-brand {
+    background: #2eb2ff;
+    color: #ffffff;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.28),
+      0 10px 28px -10px rgba(46, 178, 255, 0.55),
+      0 2px 6px rgba(45, 58, 72, 0.10);
+    transition: background-color 200ms ease, box-shadow 200ms ease,
+      transform 200ms ease;
+  }
+  .btn-brand:hover {
+    background: #38c3ff;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.32),
+      0 14px 34px -10px rgba(46, 178, 255, 0.6),
+      0 2px 6px rgba(45, 58, 72, 0.12);
+  }
+  .btn-brand:active {
+    background: #0b8dd6;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.18),
+      0 6px 16px -8px rgba(46, 178, 255, 0.45);
+  }
+
+  /* ── Prism surface (richer card) ── */
+  /* Specular top edge + layered shadow + subtle inner highlight so white
+     cards read as floating on the Prism canvas, not painted on it. */
+  .prism-surface {
+    background: #ffffff;
+    border: 1px solid rgba(45, 58, 72, 0.06);
+    border-top-color: rgba(255, 255, 255, 0.95);
+    box-shadow:
+      0 12px 40px -12px rgba(45, 58, 72, 0.10),
+      0 2px 6px rgba(45, 58, 72, 0.06),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  }
+
   /* ── Gradient Text ── */
   .gradient-text {
-    background: linear-gradient(135deg, #77adfc 0%, #bed6ff 40%, #ffffff 100%);
+    background: linear-gradient(135deg, #77cfff 0%, #a8dfff 40%, #ffffff 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
 
   .gradient-text-dark {
-    background: linear-gradient(135deg, #1d5fa8 0%, #3b82f6 50%, #01529b 100%);
+    background: linear-gradient(135deg, #2eb2ff 0%, #38c3ff 50%, #0b8dd6 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -110,17 +177,17 @@
 
   .glass-input:focus {
     background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(29, 95, 168, 0.5);
-    box-shadow: 0 0 20px rgba(29, 95, 168, 0.15);
+    border-color: rgba(46, 178, 255, 0.5);
+    box-shadow: 0 0 20px rgba(46, 178, 255, 0.15);
   }
 
   /* ── Glow Effects ── */
   .glow-primary {
-    box-shadow: 0 0 40px rgba(29, 95, 168, 0.35), 0 0 80px rgba(29, 95, 168, 0.15);
+    box-shadow: 0 0 40px rgba(46, 178, 255, 0.35), 0 0 80px rgba(46, 178, 255, 0.15);
   }
 
   .glow-sm {
-    box-shadow: 0 0 20px rgba(29, 95, 168, 0.2);
+    box-shadow: 0 0 20px rgba(46, 178, 255, 0.2);
   }
 
   /* ── Card Hover ── */
@@ -139,12 +206,12 @@
   }
 
   .shadow-glow {
-    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.08), 0 0 40px rgba(29, 95, 168, 0.06);
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.08), 0 0 40px rgba(46, 178, 255, 0.06);
   }
 
   /* ── Brand Gradient ── */
   .brand-gradient {
-    background: linear-gradient(135deg, #1d5fa8 0%, #01529b 100%);
+    background: linear-gradient(135deg, #2eb2ff 0%, #0b8dd6 100%);
   }
 
   .scrollbar-hide::-webkit-scrollbar { display: none; }

@@ -17,7 +17,7 @@ interface ErrorBannerProps {
 //
 // Usage:
 //   <ErrorBanner message={actionError} onDismiss={() => setActionError(null)} />
-//   <ErrorBanner message={syncMessage} tone="success" onDismiss={...} />
+//   <ErrorBanner message={successMsg} tone="success" onDismiss={...} />
 const TONES: Record<Tone, {
   container: string;
   icon: string;

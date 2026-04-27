@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A government services portal frontend built with **React 19 + TypeScript + Vite + Tailwind CSS v4**. The application is called **Servizz.gov** (branded as "Centercom | Servizz.gov") and provides a unified interface for accessing multiple governmental agency projects, their departments, and reports.
+A government services portal frontend built with **React 19 + TypeScript + Vite + Tailwind CSS v4**. The application is called **Servizz.gov** (branded as "Centrecom | Servizz.gov") and provides a unified interface for accessing multiple governmental agency projects, their departments, and reports.
 
 All data is currently **mock/hardcoded** in `src/data/`. The backend API should replace these data sources.
 
@@ -58,7 +58,7 @@ interface Project {
   fullDescription: string; // Long description for hero banners
   icon: string;         // Material icon name (legacy, logos used now)
   logo: string;         // Path to logo PNG, e.g. "/logos/DSS.png"
-  color: string;        // Hex theme color, e.g. "#1d5fa8"
+  color: string;        // Hex theme color, e.g. "#2eb2ff"
   hoverBorderColor: string; // Tailwind hover class (legacy)
 }
 ```

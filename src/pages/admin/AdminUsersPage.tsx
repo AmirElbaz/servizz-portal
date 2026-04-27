@@ -12,10 +12,11 @@ import {
   setUserAdmin,
   setUserPolicies,
   listPolicies,
-  triggerUserSync,
+  inviteUser,
   type AdminUser,
   type AdminPolicyListItem,
 } from "../../services/admin";
+import RequiredMark from "../../components/admin/RequiredMark";
 
 export default function AdminUsersPage() {
   const { user: currentUser } = useAuth();
@@ -25,11 +26,16 @@ export default function AdminUsersPage() {
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [modalError, setModalError] = useState<string | null>(null);
-  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [inviteMessage, setInviteMessage] = useState<string | null>(null);
   const [editing, setEditing] = useState<AdminUser | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(15);
+
+  // Invite-user modal state
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteError, setInviteError] = useState<string | null>(null);
 
   // Used by both the desktop table and the mobile card list to decide
   // whether the admin-toggle button should be disabled for a given user.
@@ -82,13 +88,28 @@ export default function AdminUsersPage() {
   // immediate pull from the source DB on top of the hourly background tick.
   // On success, shows a success banner with insert/update counts and
   // reloads the list so any new rows appear.
-  async function runSync() {
-    const result = await triggerUserSync();
-    if (result.error) throw new Error(result.error);
-    const inserted = `${result.inserted} new user${result.inserted === 1 ? "" : "s"}`;
-    const updated = `${result.updated} updated`;
-    setSyncMessage(`Sync complete — ${inserted}, ${updated}.`);
-    setActionError(null);
+  function openInviteModal() {
+    setInviteEmail("");
+    setInviteError(null);
+    setInviteOpen(true);
+  }
+
+  async function runInvite() {
+    const email = inviteEmail.trim().toLowerCase();
+    if (!email) {
+      setInviteError("Email is required.");
+      throw new Error("validation");
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setInviteError("Please enter a valid email address.");
+      throw new Error("validation");
+    }
+    setInviteError(null);
+    await inviteUser(email);
+    setInviteMessage(
+      `Invitation email sent to ${email}. They'll receive a temporary password to complete their sign-up.`
+    );
+    setInviteOpen(false);
     await reload();
   }
 
@@ -139,23 +160,24 @@ export default function AdminUsersPage() {
     <AdminLayout>
       <AdminPageHeader
         title="Users"
-        description="Manage user access. Toggle the admin flag or attach policies that grant read access to projects, departments, reports, and columns."
+        description="Manage user access. Invite new users by email, toggle the admin flag, or attach policies that grant read access to projects, departments, reports, and columns."
         action={
-          <SaveButton
-            onSave={runSync}
-            onError={(err) => setActionError(err.message)}
+          <button
+            type="button"
+            onClick={openInviteModal}
+            className="inline-flex items-center gap-2 bg-gradient-to-r from-primary to-primary-dim text-white px-4 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-primary/25 hover:opacity-95 transition-opacity"
           >
-            <span className="material-symbols-outlined text-[18px]">sync</span>
-            Sync users
-          </SaveButton>
+            <span className="material-symbols-outlined text-[18px]">person_add</span>
+            Add user
+          </button>
         }
       />
 
       <ErrorBanner message={error} onDismiss={() => setError(null)} />
       <ErrorBanner message={actionError} onDismiss={() => setActionError(null)} />
       <ErrorBanner
-        message={syncMessage}
-        onDismiss={() => setSyncMessage(null)}
+        message={inviteMessage}
+        onDismiss={() => setInviteMessage(null)}
         tone="success"
       />
 
@@ -432,6 +454,60 @@ export default function AdminUsersPage() {
             })}
           </div>
         )}
+      </Modal>
+
+      {/* ── Invite new user modal ── */}
+      <Modal
+        open={inviteOpen}
+        title="Invite new user"
+        onClose={() => setInviteOpen(false)}
+        width="sm"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setInviteOpen(false)}
+              className="px-4 py-2 rounded-lg text-sm font-semibold text-on-surface-variant hover:bg-surface-container-high transition-colors"
+            >
+              Cancel
+            </button>
+            <SaveButton
+              onSave={runInvite}
+              size="sm"
+              onError={(err) => setInviteError(err.message)}
+            >
+              Send invitation
+            </SaveButton>
+          </>
+        }
+      >
+        <ErrorBanner
+          message={inviteError}
+          onDismiss={() => setInviteError(null)}
+        />
+        <p className="text-sm text-on-surface-variant/70 mb-4">
+          Enter the new user's email address. We'll generate a temporary
+          password and email it to them. They'll choose a permanent password
+          when they sign in for the first time.
+        </p>
+        <label className="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/60 block mb-2">
+          Email <RequiredMark />
+        </label>
+        <input
+          type="email"
+          autoFocus
+          value={inviteEmail}
+          onChange={(e) => {
+            setInviteEmail(e.target.value);
+            if (inviteError) setInviteError(null);
+          }}
+          placeholder="name@centrecom.eu"
+          className={`w-full px-4 py-2.5 bg-surface-container-high/60 rounded-xl border text-on-surface text-sm focus:outline-none focus:bg-white transition-all ${
+            inviteError
+              ? "border-error/50 focus:border-error/60"
+              : "border-on-surface-variant/8 focus:border-primary/30"
+          }`}
+        />
       </Modal>
     </AdminLayout>
   );

@@ -18,12 +18,14 @@ import DashboardLayout from "../components/layout/DashboardLayout";
 import type { Project } from "../data/projects";
 import {
   fetchCatalogProject,
-  fetchCatalogDepartments,
+  fetchCatalogDepartment,
   fetchCatalogReport,
   getLogoUrl,
-  type CatalogDepartment,
+  type CatalogDepartmentSummary,
   type CatalogReport,
 } from "../services/catalog";
+import { pushRecentItem } from "../hooks/useRecentItems";
+import BackLink from "../components/ui/BackLink";
 import {
   fetchRawData,
   fetchGroupedData,
@@ -36,7 +38,7 @@ import {
   type SummaryData,
 } from "../services/api";
 
-const PIE_COLORS = ["#1d5fa8", "#9f403d"];
+const PIE_COLORS = ["#2eb2ff", "#9f403d"];
 
 type ViewMode = "raw" | "interval" | "daily" | "weekly" | "monthly";
 
@@ -91,31 +93,67 @@ function formatCellValue(_key: string, val: unknown): string {
 const PAGE_SIZE_OPTIONS = [5, 10, 15, 20, 30, 40, 50, 100, 200, 300, 400, 500];
 
 export default function ReportViewPage() {
-  const { projectCode, departmentCode, reportCode } = useParams<{
-    projectCode: string;
-    departmentCode: string;
+  // Department-first URL:
+  //   /department/:deptCode/project/:projectCode/report/:reportCode  (project-scoped)
+  //   /department/:deptCode/report/:reportCode                       (direct report)
+  //
+  // React Router infers both shapes into the same component because the
+  // routes share the same element. projectCode is undefined in the direct-
+  // report case; we branch on its presence below.
+  const { deptCode, projectCode, reportCode } = useParams<{
+    deptCode: string;
+    projectCode?: string;
     reportCode: string;
   }>();
+  const departmentCode = deptCode;
 
-  // For the existing data-fetching code that still expects "projectId"
+  // For the existing data-fetching code that still expects "projectId".
+  // projectId stays undefined for direct reports — report endpoints
+  // interpret that as "no project filter".
   const projectId = projectCode;
 
   const [project, setProject] = useState<Project | null>(null);
-  const [dept, setDept] = useState<CatalogDepartment | null>(null);
+  const [dept, setDept] = useState<CatalogDepartmentSummary | null>(null);
   const [report, setReport] = useState<CatalogReport | null>(null);
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogNotFound, setCatalogNotFound] = useState(false);
 
   useEffect(() => {
-    if (!projectCode || !departmentCode || !reportCode) return;
+    if (!departmentCode || !reportCode) return;
     setCatalogLoading(true);
     setCatalogNotFound(false);
+
+    // Direct-report URL (no project): fetch department + report only.
+    if (!projectCode) {
+      Promise.all([
+        fetchCatalogDepartment(departmentCode),
+        fetchCatalogReport(reportCode),
+      ])
+        .then(([d, r]) => {
+          setProject(null);
+          setDept(d);
+          setReport(r);
+          pushRecentItem({
+            kind: "report",
+            id: `${d.code}/${r.code}`,
+            label: r.name,
+            sublabel: d.name,
+            icon: r.icon || "description",
+            href: `/department/${d.code}/report/${r.code}`,
+          });
+        })
+        .catch(() => setCatalogNotFound(true))
+        .finally(() => setCatalogLoading(false));
+      return;
+    }
+
+    // Project-scoped URL: fetch project + department + report.
     Promise.all([
       fetchCatalogProject(projectCode),
-      fetchCatalogDepartments(projectCode),
+      fetchCatalogDepartment(departmentCode),
       fetchCatalogReport(reportCode),
     ])
-      .then(([p, depts, r]) => {
+      .then(([p, d, r]) => {
         setProject({
           id: p.code,
           code: p.shortLabel,
@@ -127,8 +165,16 @@ export default function ReportViewPage() {
           color: p.colorHex,
           hoverBorderColor: "",
         });
-        setDept(depts.find((d) => d.code === departmentCode) ?? null);
+        setDept(d);
         setReport(r);
+        pushRecentItem({
+          kind: "report",
+          id: `${d.code}/${p.code}/${r.code}`,
+          label: r.name,
+          sublabel: `${p.displayName} · ${d.name}`,
+          icon: r.icon || "description",
+          href: `/department/${d.code}/project/${p.code}/report/${r.code}`,
+        });
       })
       .catch(() => setCatalogNotFound(true))
       .finally(() => setCatalogLoading(false));
@@ -227,7 +273,7 @@ export default function ReportViewPage() {
 
   if (catalogLoading) {
     return (
-      <DashboardLayout wide featuredProject={project ?? undefined}>
+      <DashboardLayout wide>
         <div className="flex items-center justify-center h-64">
           <p className="text-on-surface-variant/60 text-sm">Loading…</p>
         </div>
@@ -235,7 +281,11 @@ export default function ReportViewPage() {
     );
   }
 
-  if (catalogNotFound || !project || !dept || !report) {
+  // `project` is deliberately allowed to be null for direct-report URLs
+  // (`/department/:deptCode/report/:reportCode`). The dept + report are
+  // sufficient to render — we fall back to theme blue + department name
+  // for any project-scoped styling below.
+  if (catalogNotFound || !dept || !report) {
     return (
       <DashboardLayout wide>
         <div className="flex items-center justify-center h-64">
@@ -244,6 +294,15 @@ export default function ReportViewPage() {
       </DashboardLayout>
     );
   }
+
+  // Branding defaults so the render path doesn't need null checks everywhere.
+  // For direct reports, we use Centrecom Blue as the accent and the dept
+  // name as the export-filename context.
+  const accent = {
+    color: project?.color ?? "#2eb2ff",
+    displayName: project?.name ?? dept.name,
+    logoFilename: project?.logo ? project.logo.split("/").pop() : undefined,
+  };
 
   const isRaw = viewMode === "raw";
 
@@ -282,22 +341,43 @@ export default function ReportViewPage() {
   }));
 
   return (
-    <DashboardLayout wide featuredProject={project}>
-      <div style={{ "--accent": project.color } as React.CSSProperties}>
+    <DashboardLayout wide>
+      <div style={{ "--accent": accent.color } as React.CSSProperties}>
+        <BackLink
+          to={
+            projectCode && departmentCode
+              ? `/department/${departmentCode}/project/${projectCode}`
+              : departmentCode
+              ? `/department/${departmentCode}`
+              : "/dashboard"
+          }
+          label={projectCode ? "Back to Project" : "Back to Department"}
+        />
+
         {/* ── Header ── */}
         <div className="mb-8">
           <nav className="flex items-center gap-2 mb-4 text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant/50">
             <Link to="/dashboard" className="hover:text-on-surface transition-colors no-underline text-on-surface-variant/50">
-              Servizz.gov
+              Dashboard
             </Link>
             <span className="material-symbols-outlined text-xs">chevron_right</span>
-            <Link to={`/project/${projectCode}`} className="hover:text-on-surface transition-colors no-underline text-on-surface-variant/50">
-              {project.name}
-            </Link>
-            <span className="material-symbols-outlined text-xs">chevron_right</span>
-            <Link to={`/project/${projectCode}/department/${departmentCode}`} className="hover:text-on-surface transition-colors no-underline text-on-surface-variant/50">
+            <Link
+              to={`/department/${departmentCode}`}
+              className="hover:text-on-surface transition-colors no-underline text-on-surface-variant/50"
+            >
               {dept.name}
             </Link>
+            {project && projectCode && (
+              <>
+                <span className="material-symbols-outlined text-xs">chevron_right</span>
+                <Link
+                  to={`/department/${departmentCode}/project/${projectCode}`}
+                  className="hover:text-on-surface transition-colors no-underline text-on-surface-variant/50"
+                >
+                  {project.name}
+                </Link>
+              </>
+            )}
             <span className="material-symbols-outlined text-xs">chevron_right</span>
             <span className="text-accent">{report.name}</span>
           </nav>
@@ -313,19 +393,19 @@ export default function ReportViewPage() {
             </div>
             <div className={`flex items-center gap-2 shrink-0 transition-opacity ${totalItems === 0 ? "opacity-30 pointer-events-none" : ""}`} title={totalItems === 0 ? "No data to export" : undefined}>
               <button
-                onClick={() => downloadExport(dateFrom, dateTo, viewMode, projectId, groupBySkillset, intervalWidth, "excel", project.name, project.logo.split("/").pop())}
+                onClick={() => downloadExport(dateFrom, dateTo, viewMode, projectId, groupBySkillset, intervalWidth, "excel", accent.displayName, accent.logoFilename)}
                 disabled={totalItems === 0}
                 className="bg-accent text-white px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 hover:opacity-90 transition-all shadow-lg disabled:cursor-not-allowed"
-                style={{ boxShadow: `0 4px 20px ${project.color}25` }}
+                style={{ boxShadow: `0 4px 20px ${accent.color}25` }}
               >
                 <span className="material-symbols-outlined text-[18px]">table_view</span>
                 Excel
               </button>
               <button
-                onClick={() => downloadExport(dateFrom, dateTo, viewMode, projectId, groupBySkillset, intervalWidth, "pdf", project.name, project.logo.split("/").pop())}
+                onClick={() => downloadExport(dateFrom, dateTo, viewMode, projectId, groupBySkillset, intervalWidth, "pdf", accent.displayName, accent.logoFilename)}
                 disabled={totalItems === 0}
                 className="bg-accent text-white px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 hover:opacity-90 transition-all shadow-lg disabled:cursor-not-allowed"
-                style={{ boxShadow: `0 4px 20px ${project.color}25` }}
+                style={{ boxShadow: `0 4px 20px ${accent.color}25` }}
               >
                 <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span>
                 PDF
@@ -335,7 +415,7 @@ export default function ReportViewPage() {
         </div>
 
         {/* ── Filters ── */}
-        <div className="mb-8 bg-white rounded-2xl p-5 space-y-4" style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+        <div className="mb-8 prism-surface rounded-2xl p-5 space-y-4">
           {/* Row 1: Date range + View mode */}
           <div className="flex flex-wrap items-end gap-3 sm:gap-4">
             <div className="flex-1 min-w-[110px]">
@@ -395,7 +475,7 @@ export default function ReportViewPage() {
                 onClick={() => setGroupBySkillset(!groupBySkillset)}
                 disabled={isRaw}
                 className={`relative w-10 h-[22px] rounded-full transition-colors ${groupBySkillset ? "" : "bg-on-surface-variant/20"}`}
-                style={groupBySkillset && !isRaw ? { backgroundColor: project.color } : undefined}
+                style={groupBySkillset && !isRaw ? { backgroundColor: accent.color } : undefined}
               >
                 <span className={`absolute top-[2px] left-[2px] w-[18px] h-[18px] bg-white rounded-full shadow transition-transform ${groupBySkillset ? "translate-x-[18px]" : ""}`} />
               </button>
@@ -419,7 +499,7 @@ export default function ReportViewPage() {
                         ? "bg-accent text-white"
                         : "bg-surface-container-high/50 text-on-surface-variant hover:bg-surface-container-high"
                     }`}
-                    style={intervalWidth === w && viewMode === "interval" ? { backgroundColor: project.color } : undefined}
+                    style={intervalWidth === w && viewMode === "interval" ? { backgroundColor: accent.color } : undefined}
                   >
                     {w}m
                   </button>
@@ -435,18 +515,15 @@ export default function ReportViewPage() {
 
         {/* ── Widgets ── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-          <div
-            className="bg-white rounded-2xl p-6 flex items-center gap-5"
-            style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
-          >
+          <div className="prism-surface rounded-2xl p-6 flex items-center gap-5">
             <div
               className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0"
-              style={{ backgroundColor: `${project.color}10`, color: project.color }}
+              style={{ backgroundColor: `${accent.color}10`, color: accent.color }}
             >
               <span className="material-symbols-outlined text-2xl">call</span>
             </div>
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 mb-1">
+              <p className="eyebrow-sm text-on-surface-variant/50 mb-1">
                 Offered Calls
               </p>
               <p className="text-2xl font-black text-on-surface tracking-tight">
@@ -454,18 +531,15 @@ export default function ReportViewPage() {
               </p>
             </div>
           </div>
-          <div
-            className="bg-white rounded-2xl p-6 flex items-center gap-5"
-            style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
-          >
+          <div className="prism-surface rounded-2xl p-6 flex items-center gap-5">
             <div
               className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0"
-              style={{ backgroundColor: `${project.color}10`, color: project.color }}
+              style={{ backgroundColor: `${accent.color}10`, color: accent.color }}
             >
               <span className="material-symbols-outlined text-2xl">speed</span>
             </div>
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 mb-1">
+              <p className="eyebrow-sm text-on-surface-variant/50 mb-1">
                 Service Level
               </p>
               <p className="text-2xl font-black text-on-surface tracking-tight">
@@ -478,10 +552,7 @@ export default function ReportViewPage() {
         {/* ── Charts ── */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mb-8">
           {/* Area Chart */}
-          <div
-            className="lg:col-span-3 bg-white rounded-2xl p-6"
-            style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
-          >
+          <div className="lg:col-span-3 prism-surface rounded-2xl p-6">
             <div className="flex items-start justify-between gap-4 mb-4">
               <div>
                 <h3 className="text-sm font-bold text-on-surface mb-1 font-headline">
@@ -501,7 +572,7 @@ export default function ReportViewPage() {
                         ? "bg-accent text-white"
                         : "bg-surface-container-high/50 text-on-surface-variant hover:bg-surface-container-high"
                     }`}
-                    style={chartMetric === opt ? { backgroundColor: project.color } : undefined}
+                    style={chartMetric === opt ? { backgroundColor: accent.color } : undefined}
                   >
                     {opt}
                   </button>
@@ -520,8 +591,8 @@ export default function ReportViewPage() {
                 <AreaChart data={areaChartData}>
                   <defs>
                     <linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={project.color} stopOpacity={0.2} />
-                      <stop offset="95%" stopColor={project.color} stopOpacity={0} />
+                      <stop offset="5%" stopColor={accent.color} stopOpacity={0.2} />
+                      <stop offset="95%" stopColor={accent.color} stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e8eff3" />
@@ -559,7 +630,7 @@ export default function ReportViewPage() {
                   <Area
                     type="monotone"
                     dataKey="value"
-                    stroke={project.color}
+                    stroke={accent.color}
                     strokeWidth={2.5}
                     fill="none"
                   />
@@ -569,10 +640,7 @@ export default function ReportViewPage() {
           </div>
 
           {/* Pie Chart */}
-          <div
-            className="lg:col-span-2 bg-white rounded-2xl p-6"
-            style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
-          >
+          <div className="lg:col-span-2 prism-surface rounded-2xl p-6">
             <h3 className="text-sm font-bold text-on-surface mb-1 font-headline">
               Offered Breakdown
             </h3>
@@ -630,10 +698,7 @@ export default function ReportViewPage() {
         </div>
 
         {/* ── Data Table ── */}
-        <div
-          className="bg-white rounded-2xl overflow-hidden"
-          style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
-        >
+        <div className="prism-surface rounded-2xl overflow-hidden">
           <div className="px-6 py-4 border-b border-on-surface-variant/6 flex items-center justify-between">
             <h3 className="text-sm font-bold text-on-surface font-headline">
               {isRaw ? "Raw Data" : `Grouped by ${viewMode}`}
@@ -748,7 +813,7 @@ export default function ReportViewPage() {
               pageSizeOptions={PAGE_SIZE_OPTIONS}
               onPageChange={handlePageChange}
               onPageSizeChange={handlePageSizeChange}
-              accentColor={project.color}
+              accentColor={accent.color}
             />
           </div>
         </div>
