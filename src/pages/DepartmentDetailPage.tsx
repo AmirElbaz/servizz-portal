@@ -22,6 +22,7 @@ import {
   createHrTemplate,
   type HrTemplate,
 } from "../services/hr";
+import { IvrCategorySection } from "../components/reports/IvrCategorySection";
 
 // Landing for a single department. Top-level in the department-first catalog.
 //
@@ -416,40 +417,66 @@ export default function DepartmentDetailPage() {
         )}
 
         {/* ── Direct reports ── */}
-        {dept.modules.includes("direct_reports") && directReports.length > 0 && (
-          <section className="mb-10">
-            <h2 className="text-xl font-bold font-headline text-on-surface tracking-tight mb-6">
-              {projects.length > 0 ? "Reports" : "Available Reports"}
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {directReports.map((r) => (
-                <Link
-                  key={r.code}
-                  to={`/department/${deptCode}/report/${r.code}`}
-                  className="group prism-surface relative rounded-2xl p-6 no-underline card-lift overflow-hidden hover:border-accent-50"
-                >
-                  <div
-                    className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
-                    style={{ boxShadow: `0 0 40px ${color}15` }}
-                  />
-                  <div className="relative">
-                    <div className="w-12 h-12 bg-surface-container-high rounded-xl flex items-center justify-center mb-3 text-on-surface-variant group-hover:bg-accent group-hover:text-white transition-all duration-300">
-                      <span className="material-symbols-outlined text-[22px]">
-                        {r.icon || "bar_chart"}
-                      </span>
-                    </div>
-                    <h5 className="font-bold text-on-surface text-sm mb-1">{r.name}</h5>
-                    {r.description && (
-                      <p className="text-[11px] text-on-surface-variant/60 leading-relaxed">
-                        {r.description}
-                      </p>
-                    )}
+        {/* Reports are split by category. The IVR & Queue Analytics group
+            renders via a dedicated component (so it can interleave the live
+            report with hardcoded placeholders for the not-yet-built
+            siblings). Everything else stays in the default "Reports" grid.
+            Operation also renders the IVR group on the dept-direct page so
+            users can land on the trend-comparison preview from there.
+            //
+            On a project-aware dept (Operation), the IVR section also lives
+            on each project's detail page (see ProjectDetailPage). */}
+        {(() => {
+          const ivrReports = directReports.filter((r) => r.category === "ivr");
+          const otherReports = directReports.filter((r) => r.category !== "ivr");
+          const showIvr = dept.code.toUpperCase() === "OPS" || ivrReports.length > 0;
+
+          return (
+            <>
+              {showIvr && (
+                <IvrCategorySection
+                  realReports={ivrReports}
+                  linkBuilder={(code) => `/department/${deptCode}/report/${code}`}
+                />
+              )}
+
+              {dept.modules.includes("direct_reports") && otherReports.length > 0 && (
+                <section className="mb-10">
+                  <h2 className="text-xl font-bold font-headline text-on-surface tracking-tight mb-6">
+                    {projects.length > 0 ? "Reports" : "Available Reports"}
+                  </h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {otherReports.map((r) => (
+                      <Link
+                        key={r.code}
+                        to={`/department/${deptCode}/report/${r.code}`}
+                        className="group prism-surface relative rounded-2xl p-6 no-underline card-lift overflow-hidden hover:border-accent-50"
+                      >
+                        <div
+                          className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+                          style={{ boxShadow: `0 0 40px ${color}15` }}
+                        />
+                        <div className="relative">
+                          <div className="w-12 h-12 bg-surface-container-high rounded-xl flex items-center justify-center mb-3 text-on-surface-variant group-hover:bg-accent group-hover:text-white transition-all duration-300">
+                            <span className="material-symbols-outlined text-[22px]">
+                              {r.icon || "bar_chart"}
+                            </span>
+                          </div>
+                          <h5 className="font-bold text-on-surface text-sm mb-1">{r.name}</h5>
+                          {r.description && (
+                            <p className="text-[11px] text-on-surface-variant/60 leading-relaxed">
+                              {r.description}
+                            </p>
+                          )}
+                        </div>
+                      </Link>
+                    ))}
                   </div>
-                </Link>
-              ))}
-            </div>
-          </section>
-        )}
+                </section>
+              )}
+            </>
+          );
+        })()}
 
         {/* Empty state — no module is enabled with matching visible content. */}
         {(() => {

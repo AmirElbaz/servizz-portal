@@ -83,7 +83,7 @@ export default function LoginPage() {
               <img
                 src="/centrecom-logo.svg"
                 alt="Centrecom"
-                className="h-10 md:h-12 w-auto"
+                className="h-16 md:h-20 w-auto"
               />
             </div>
 
@@ -138,7 +138,17 @@ export default function LoginPage() {
 
             {/* Bottom: footer (desktop) */}
             <div className="hidden lg:flex items-center justify-between text-[11px] tracking-wide text-on-surface-variant/40 font-medium">
-              <span>&copy; 2024 Centrecom &amp; Servizz.gov</span>
+              <span>
+                &copy; 2026{" "}
+                <a
+                  href="https://www.centrecom.eu"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-on-surface-variant/70 transition-colors"
+                >
+                  Centrecom
+                </a>
+              </span>
               <div className="flex gap-5">
                 {["Privacy", "Terms", "Accessibility"].map((link) => (
                   <a
@@ -171,7 +181,7 @@ export default function LoginPage() {
                       Welcome back.
                     </h2>
                     <p className="text-on-surface-variant/60 text-sm">
-                      Sign in to access your government services
+                      Sign in to access your reporting services
                     </p>
                   </div>
 
@@ -341,7 +351,15 @@ export default function LoginPage() {
       {/* ── Mobile Footer ── */}
       <footer className="lg:hidden w-full py-4 flex flex-col sm:flex-row justify-between items-center gap-2 px-4 md:px-10 relative z-10">
         <span className="text-[11px] tracking-wide text-on-surface-variant/30 font-medium">
-          &copy; 2024 Centrecom &amp; Servizz.gov
+          &copy; 2026{" "}
+          <a
+            href="https://www.centrecom.eu"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-on-surface-variant/60 transition-colors"
+          >
+            Centrecom
+          </a>
         </span>
         <div className="flex gap-6">
           {["Privacy", "Terms", "Accessibility"].map((link) => (

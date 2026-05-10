@@ -1,5 +1,3 @@
-import centrcomLogo from "../../assets/logos/Centrcom-logo-2.svg";
-
 interface FooterProps {
   variant?: "auth" | "dashboard";
 }
@@ -9,7 +7,7 @@ export default function Footer({ variant = "dashboard" }: FooterProps) {
     return (
       <footer className="absolute bottom-0 w-full py-6 flex justify-between items-center px-10 z-10">
         <span className="text-[11px] tracking-wide text-white/30 font-medium">
-          &copy; 2024{" "}
+          &copy; 2026{" "}
           <a
             href="https://www.centrecom.eu"
             target="_blank"
@@ -37,9 +35,9 @@ export default function Footer({ variant = "dashboard" }: FooterProps) {
   return (
     <footer className="w-full py-5 px-6 lg:px-12 max-w-[90rem] mx-auto flex justify-between items-center gap-6">
       <div className="flex items-center gap-3 min-w-0">
-        <img src={centrcomLogo} alt="Centrecom" className="h-5 w-auto shrink-0" />
+        <img src="/centrecom-logo.svg" alt="Centrecom" className="h-5 w-auto shrink-0" />
         <span className="text-[10px] font-semibold tracking-wider uppercase text-on-surface-variant/50 truncate">
-          &copy; 2024{" "}
+          &copy; 2026{" "}
           <a
             href="https://www.centrecom.eu"
             target="_blank"

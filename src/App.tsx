@@ -13,6 +13,9 @@ import HrTemplateDesignerPage from "./pages/hr/HrTemplateDesignerPage";
 import HrRecordDetailPage from "./pages/hr/HrRecordDetailPage";
 import ProjectDetailPage from "./pages/ProjectDetailPage";
 import ReportViewPage from "./pages/ReportViewPage";
+import IvrTrendComparisonPreviewPage from "./pages/IvrTrendComparisonPreviewPage";
+import IvrFunnelPreviewPage from "./pages/IvrFunnelPreviewPage";
+import HourlyDistributionPreviewPage from "./pages/HourlyDistributionPreviewPage";
 
 // Admin pages are lazy-loaded — they ship a separate chunk so non-admins
 // never download the code.
@@ -98,6 +101,42 @@ export default function App() {
           <Route
             path="/department/:deptCode/report/:reportCode"
             element={<ProtectedRoute><ReportViewPage /></ProtectedRoute>}
+          />
+
+          {/* ── IVR Trend & Comparison ── */}
+          {/* Three URL shapes all render the same page:                  */}
+          {/*   - /preview/ivr-trend-comparison (legacy preview alias)    */}
+          {/*   - /department/:deptCode/report/ivr-trend-comparison       */}
+          {/*       → dept-direct: project filter is a dropdown           */}
+          {/*   - /department/:deptCode/project/:projectCode/             */}
+          {/*       report/ivr-trend-comparison                           */}
+          {/*       → project-locked: dropdown hidden, project pinned     */}
+          {/* These specific routes win over the generic                  */}
+          {/* /report/:reportCode below by React Router's static-segment  */}
+          {/* ranking, so ReportViewPage never renders the IVR report.    */}
+          <Route
+            path="/preview/ivr-trend-comparison"
+            element={<ProtectedRoute><IvrTrendComparisonPreviewPage /></ProtectedRoute>}
+          />
+          <Route
+            path="/department/:deptCode/report/ivr-trend-comparison"
+            element={<ProtectedRoute><IvrTrendComparisonPreviewPage /></ProtectedRoute>}
+          />
+          <Route
+            path="/department/:deptCode/project/:projectCode/report/ivr-trend-comparison"
+            element={<ProtectedRoute><IvrTrendComparisonPreviewPage /></ProtectedRoute>}
+          />
+
+          {/* ── IVR Funnel — preview only (mock data) ── */}
+          <Route
+            path="/preview/ivr-funnel"
+            element={<ProtectedRoute><IvrFunnelPreviewPage /></ProtectedRoute>}
+          />
+
+          {/* ── Hourly Distribution — preview only (mock data) ── */}
+          <Route
+            path="/preview/hourly-distribution"
+            element={<ProtectedRoute><HourlyDistributionPreviewPage /></ProtectedRoute>}
           />
 
           {/* ── Templates module (HR) ── */}

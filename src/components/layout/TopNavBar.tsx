@@ -1,6 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../services/auth";
-import CentrecomLogo from "../ui/CentrecomLogo";
 
 interface TopNavBarProps {
   /** Kept for source-compat with the dashboard variants during transition.
@@ -19,13 +18,13 @@ export default function TopNavBar(_props: TopNavBarProps = {}) {
 
   return (
     <header className="fixed top-2 sm:top-5 left-1/2 -translate-x-1/2 z-50 w-[96%] max-w-[90rem]">
-      <div className="glass-nav rounded-2xl px-4 sm:px-8 py-2.5 sm:py-3 flex justify-between items-center shadow-lg shadow-black/[0.04] gap-3">
+      <div className="glass-nav rounded-2xl px-4 sm:px-8 py-2.5 flex justify-between items-center shadow-lg shadow-black/[0.04] gap-3">
         <Link
           to="/dashboard"
           className="shrink-0 flex items-center gap-3 sm:gap-4 no-underline"
           aria-label="Centrecom | Servizz.gov"
         >
-          <CentrecomLogo className="h-7 sm:h-8 w-auto text-primary" />
+          <img src="/centrecom-logo.svg" alt="Centrecom" className="h-9 sm:h-10 w-auto" />
           <span className="hidden sm:inline-block w-px h-6 bg-on-surface-variant/20" aria-hidden />
           <span className="hidden sm:inline text-base font-extrabold tracking-tight text-on-surface font-headline">
             Servizz.gov

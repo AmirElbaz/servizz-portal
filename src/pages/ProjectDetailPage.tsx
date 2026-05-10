@@ -11,6 +11,7 @@ import {
 } from "../services/catalog";
 import { pushRecentItem } from "../hooks/useRecentItems";
 import BackLink from "../components/ui/BackLink";
+import { IvrCategorySection } from "../components/reports/IvrCategorySection";
 
 // Department-first adaptation: the URL now carries BOTH a department code and
 // a project code (/department/:deptCode/project/:projectCode). The departments
@@ -155,46 +156,67 @@ export default function ProjectDetailPage() {
         </section>
 
         {/* ── Reports ── */}
-        <section>
-          <h2 className="text-xl font-bold font-headline text-on-surface tracking-tight mb-6">
-            Reports
-          </h2>
-          {reports.length === 0 ? (
-            <div className="prism-surface rounded-2xl p-10 text-center">
-              <p className="text-sm text-on-surface-variant/60">
-                No reports are available in this project for your access level.
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {reports.map((r) => (
-                <Link
-                  key={r.code}
-                  to={`/department/${deptCode}/project/${projectCode}/report/${r.code}`}
-                  className="group prism-surface relative rounded-2xl p-6 no-underline card-lift overflow-hidden hover:border-accent-50"
-                >
-                  <div
-                    className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
-                    style={{ boxShadow: `0 0 40px ${project.color}15` }}
-                  />
-                  <div className="relative">
-                    <div className="w-12 h-12 bg-surface-container-high rounded-xl flex items-center justify-center mb-3 text-on-surface-variant group-hover:bg-accent group-hover:text-white transition-all duration-300">
-                      <span className="material-symbols-outlined text-[22px]">
-                        {r.icon || "bar_chart"}
-                      </span>
-                    </div>
-                    <h5 className="font-bold text-on-surface text-sm mb-1">{r.name}</h5>
-                    {r.description && (
-                      <p className="text-[11px] text-on-surface-variant/60 leading-relaxed">
-                        {r.description}
-                      </p>
-                    )}
+        {/* Project pages always render the IVR group (Operation owns the
+            inbound voice analytics bundle, and every operation project
+            inherits the same set). The "Other" section below collects
+            anything outside the IVR category — e.g., the existing
+            skillset-historical report. */}
+        {(() => {
+          const ivrReports = reports.filter((r) => r.category === "ivr");
+          const otherReports = reports.filter((r) => r.category !== "ivr");
+
+          return (
+            <>
+              <IvrCategorySection
+                realReports={ivrReports}
+                linkBuilder={(code) =>
+                  `/department/${deptCode}/project/${projectCode}/report/${code}`
+                }
+              />
+
+              <section>
+                <h2 className="text-xl font-bold font-headline text-on-surface tracking-tight mb-6">
+                  {ivrReports.length > 0 ? "Other reports" : "Reports"}
+                </h2>
+                {otherReports.length === 0 ? (
+                  <div className="prism-surface rounded-2xl p-10 text-center">
+                    <p className="text-sm text-on-surface-variant/60">
+                      No additional reports are available in this project for your access level.
+                    </p>
                   </div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </section>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {otherReports.map((r) => (
+                      <Link
+                        key={r.code}
+                        to={`/department/${deptCode}/project/${projectCode}/report/${r.code}`}
+                        className="group prism-surface relative rounded-2xl p-6 no-underline card-lift overflow-hidden hover:border-accent-50"
+                      >
+                        <div
+                          className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+                          style={{ boxShadow: `0 0 40px ${project.color}15` }}
+                        />
+                        <div className="relative">
+                          <div className="w-12 h-12 bg-surface-container-high rounded-xl flex items-center justify-center mb-3 text-on-surface-variant group-hover:bg-accent group-hover:text-white transition-all duration-300">
+                            <span className="material-symbols-outlined text-[22px]">
+                              {r.icon || "bar_chart"}
+                            </span>
+                          </div>
+                          <h5 className="font-bold text-on-surface text-sm mb-1">{r.name}</h5>
+                          {r.description && (
+                            <p className="text-[11px] text-on-surface-variant/60 leading-relaxed">
+                              {r.description}
+                            </p>
+                          )}
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </>
+          );
+        })()}
       </div>
     </DashboardLayout>
   );

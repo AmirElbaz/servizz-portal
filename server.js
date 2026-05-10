@@ -40,9 +40,9 @@ const server = createServer((req, res) => {
   }
 });
 
-server.listen(port, "0.0.0.0", () => {
+server.listen(port, "127.0.0.1", () => {
   console.log(`▲ Servizz Portal`);
   console.log(`- Local:         http://localhost:${port}`);
-  console.log(`- Network:       http://0.0.0.0:${port}`);
+  console.log(`- Network:       http://127.0.0.1:${port}`);
   console.log(`✓ Ready`);
 });

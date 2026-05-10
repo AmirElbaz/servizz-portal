@@ -109,7 +109,15 @@ export default function ForgotPasswordPage() {
       {/* ── Footer ── */}
       <footer className="relative z-10 w-full py-4 flex flex-col sm:flex-row justify-between items-center gap-2 px-4 md:px-10">
         <span className="eyebrow-sm tracking-[0.18em] text-on-surface-variant/35">
-          &copy; 2024 Centrecom &amp; Servizz.gov
+          &copy; 2026{" "}
+          <a
+            href="https://www.centrecom.eu"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-on-surface-variant/70 transition-colors"
+          >
+            Centrecom
+          </a>
         </span>
         <div className="flex gap-6">
           {["Privacy", "Terms", "Accessibility"].map((link) => (

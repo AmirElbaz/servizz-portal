@@ -34,6 +34,14 @@ export interface GroupedRow {
   Offered: number;
   Answered: number;
   Abandoned: number;
+  // Derived metrics. Server returns null when the bucket has no Offered (PCA, GOS)
+  // or no Answered (ATT/AWT/AHT) rows — UI renders "—" for null cells.
+  // PCA = Percentage of Calls Answered (formerly "Service Level").
+  PCA: number | null;
+  GOS: number | null;
+  ATT: number | null;
+  AWT: number | null;
+  AHT: number | null;
   WaitTime: number;
   PCPTime: number;
   PresentingTime: number;
@@ -56,7 +64,8 @@ export interface SummaryData {
   offered: number;
   answered: number;
   abandoned: number;
-  serviceLevel: number;
+  // PCA (Percentage of Calls Answered) — same math as legacy "Service Level".
+  pca: number;
 }
 
 export function fetchRawData(
@@ -64,11 +73,13 @@ export function fetchRawData(
   dateTo: string,
   page: number,
   pageSize: number,
-  project?: string
+  project?: string,
+  workingHoursOnly = false
 ): Promise<PaginatedResponse<Record<string, unknown>>> {
   const p = project ? `&project=${project}` : "";
+  const wh = workingHoursOnly ? `&workingHoursOnly=true` : "";
   return request(
-    `/SkillsetReport/raw?dateFrom=${dateFrom}&dateTo=${dateTo}&page=${page}&pageSize=${pageSize}${p}`
+    `/SkillsetReport/raw?dateFrom=${dateFrom}&dateTo=${dateTo}&page=${page}&pageSize=${pageSize}${p}${wh}`
   );
 }
 
@@ -80,11 +91,13 @@ export function fetchGroupedData(
   pageSize: number,
   project?: string,
   groupBySkillset = true,
-  intervalWidth = 15
+  intervalWidth = 15,
+  workingHoursOnly = false
 ): Promise<PaginatedResponse<GroupedRow>> {
   const p = project ? `&project=${project}` : "";
+  const wh = workingHoursOnly ? `&workingHoursOnly=true` : "";
   return request(
-    `/SkillsetReport/grouped?dateFrom=${dateFrom}&dateTo=${dateTo}&mode=${mode}&page=${page}&pageSize=${pageSize}${p}&groupBySkillset=${groupBySkillset}&intervalWidth=${intervalWidth}`
+    `/SkillsetReport/grouped?dateFrom=${dateFrom}&dateTo=${dateTo}&mode=${mode}&page=${page}&pageSize=${pageSize}${p}&groupBySkillset=${groupBySkillset}&intervalWidth=${intervalWidth}${wh}`
   );
 }
 
@@ -93,34 +106,40 @@ export function fetchChartData(
   dateTo: string,
   project?: string,
   mode = "daily",
-  intervalWidth = 15
+  intervalWidth = 15,
+  workingHoursOnly = false
 ): Promise<ChartPoint[]> {
   const p = project ? `&project=${project}` : "";
-  return request(`/SkillsetReport/chart?dateFrom=${dateFrom}&dateTo=${dateTo}${p}&mode=${mode}&intervalWidth=${intervalWidth}`);
+  const wh = workingHoursOnly ? `&workingHoursOnly=true` : "";
+  return request(`/SkillsetReport/chart?dateFrom=${dateFrom}&dateTo=${dateTo}${p}&mode=${mode}&intervalWidth=${intervalWidth}${wh}`);
 }
 
 export function fetchSummary(
   dateFrom: string,
   dateTo: string,
-  project?: string
+  project?: string,
+  workingHoursOnly = false
 ): Promise<SummaryData> {
   const p = project ? `&project=${project}` : "";
-  return request(`/SkillsetReport/summary?dateFrom=${dateFrom}&dateTo=${dateTo}${p}`);
+  const wh = workingHoursOnly ? `&workingHoursOnly=true` : "";
+  return request(`/SkillsetReport/summary?dateFrom=${dateFrom}&dateTo=${dateTo}${p}${wh}`);
 }
 
 export interface DashboardSummaryData {
   offered: number;
   answered: number;
-  serviceLevel: number;
+  pca: number;
 }
 
 export function fetchDashboardSummary(
   dateFrom: string,
   dateTo: string,
-  project?: string
+  project?: string,
+  workingHoursOnly = false
 ): Promise<DashboardSummaryData> {
   const p = project ? `&project=${project}` : "";
-  return request(`/SkillsetReport/dashboard-summary?dateFrom=${dateFrom}&dateTo=${dateTo}${p}`);
+  const wh = workingHoursOnly ? `&workingHoursOnly=true` : "";
+  return request(`/SkillsetReport/dashboard-summary?dateFrom=${dateFrom}&dateTo=${dateTo}${p}${wh}`);
 }
 
 export async function downloadExport(
@@ -132,12 +151,14 @@ export async function downloadExport(
   intervalWidth = 15,
   format: "excel" | "pdf" = "excel",
   projectName?: string,
-  projectLogo?: string
+  projectLogo?: string,
+  workingHoursOnly = false
 ): Promise<void> {
   const p = project ? `&project=${project}` : "";
   const pn = projectName ? `&projectName=${encodeURIComponent(projectName)}` : "";
   const pl = projectLogo ? `&projectLogo=${encodeURIComponent(projectLogo)}` : "";
-  const url = `${BASE_URL}/SkillsetReport/export?dateFrom=${dateFrom}&dateTo=${dateTo}&mode=${mode}${p}&groupBySkillset=${groupBySkillset}&intervalWidth=${intervalWidth}&format=${format}${pn}${pl}`;
+  const wh = workingHoursOnly ? `&workingHoursOnly=true` : "";
+  const url = `${BASE_URL}/SkillsetReport/export?dateFrom=${dateFrom}&dateTo=${dateTo}&mode=${mode}${p}&groupBySkillset=${groupBySkillset}&intervalWidth=${intervalWidth}&format=${format}${pn}${pl}${wh}`;
   const res = await fetch(url, { headers: getAuthHeaders() });
   if (!res.ok) throw new Error("Export failed");
   const blob = await res.blob();

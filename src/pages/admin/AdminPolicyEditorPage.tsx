@@ -82,6 +82,11 @@ export default function AdminPolicyEditorPage() {
 
   const [tab, setTab] = useState<Tab>("access");
 
+  // Columns tab — which granted report's columns to configure right now.
+  // Single-select; when granted reports change (e.g. user unticks the dept
+  // in Access), we auto-fall-back to the first granted code, or null.
+  const [selectedColumnReportCode, setSelectedColumnReportCode] = useState<string | null>(null);
+
   // ── Client-side pagination for the Users tab ──
   // The Users tab renders every user as a checkbox card, which gets unwieldy
   // with real user counts. The `grantedUserIds` set lives at the component
@@ -321,23 +326,57 @@ export default function AdminPolicyEditorPage() {
   }
 
   // ── Columns tab helpers ──
-  // Derive the set of report codes this policy grants — from both the
-  // project-scoped report grants and the direct-report grants.
+  // Derive the set of report codes this policy grants. Three sources:
+  //   1. Explicit project-report leaf grants (`policy_project_reports`).
+  //   2. Explicit direct-report grants on a department (`policy_department_reports`).
+  //   3. Whole-department grants (`policy_departments`) — ticking a dept at
+  //      the top of the Access tab implicitly grants every report reachable
+  //      through it (every project_report under any of its projects + every
+  //      direct_report attached to it). These reports MUST surface in the
+  //      Columns tab so the admin doesn't have to bounce back to Access and
+  //      tick a leaf just to expose them.
   const grantedReportCodes = useMemo(() => {
     if (!snapshot) return [] as string[];
     const placementsById = new Map(snapshot.placements.map((p) => [p.id, p]));
     const directById = new Map(snapshot.directReports.map((p) => [p.id, p]));
     const codes = new Set<string>();
+
+    // (1) Leaf project-report grants.
     for (const pdrId of grantedPdrIds) {
       const p = placementsById.get(pdrId);
       if (p) codes.add(p.reportCode);
     }
+
+    // (2) Leaf direct-report grants.
     for (const drId of grantedDirectReportIds) {
       const p = directById.get(drId);
       if (p) codes.add(p.reportCode);
     }
+
+    // (3) Whole-department grants — fan out to every reachable report.
+    if (grantedDepartmentIds.size > 0) {
+      // departmentId → set of projectDepartment.id under that dept
+      const pdsByDept = new Map<number, Set<number>>();
+      for (const pd of snapshot.projectDepartments) {
+        let bucket = pdsByDept.get(pd.departmentId);
+        if (!bucket) { bucket = new Set(); pdsByDept.set(pd.departmentId, bucket); }
+        bucket.add(pd.id);
+      }
+      for (const deptId of grantedDepartmentIds) {
+        const pdIds = pdsByDept.get(deptId);
+        if (pdIds) {
+          for (const placement of snapshot.placements) {
+            if (pdIds.has(placement.projectDepartmentId)) codes.add(placement.reportCode);
+          }
+        }
+        for (const dr of snapshot.directReports) {
+          if (dr.departmentId === deptId) codes.add(dr.reportCode);
+        }
+      }
+    }
+
     return Array.from(codes).sort();
-  }, [snapshot, grantedPdrIds, grantedDirectReportIds]);
+  }, [snapshot, grantedPdrIds, grantedDirectReportIds, grantedDepartmentIds]);
 
   // Lazy-fetch schema when a report first appears in the granted list.
   useEffect(() => {
@@ -351,6 +390,19 @@ export default function AdminPolicyEditorPage() {
       }
     });
   }, [grantedReportCodes, schemas]);
+
+  // Keep the dropdown selection in sync with the granted set. If the current
+  // pick is no longer granted (admin unticked the dept in Access), fall back
+  // to the first granted code, or null when nothing is granted.
+  useEffect(() => {
+    if (grantedReportCodes.length === 0) {
+      if (selectedColumnReportCode !== null) setSelectedColumnReportCode(null);
+      return;
+    }
+    if (!selectedColumnReportCode || !grantedReportCodes.includes(selectedColumnReportCode)) {
+      setSelectedColumnReportCode(grantedReportCodes[0]);
+    }
+  }, [grantedReportCodes, selectedColumnReportCode]);
 
   function toggleColumn(reportCode: string, key: string) {
     setColumnGrants((prev) => {
@@ -896,14 +948,48 @@ export default function AdminPolicyEditorPage() {
                         view_column
                       </span>
                       <p className="text-sm text-on-surface-variant/60">
-                        Grant access to at least one report in the Access tab to choose which columns are visible.
+                        Grant access to at least one department, project-report, or direct report in the Access tab to choose which columns are visible.
                       </p>
                     </div>
                   ) : (
-                    grantedReportCodes.map((reportCode) => {
-                      const schema = schemas[reportCode];
-                      const allowed = columnGrants[reportCode] ?? new Set<string>();
-                      return (
+                    <>
+                      {/* Report picker — shows a dropdown of every report the
+                          policy effectively grants (via leaf ticks OR a
+                          whole-department grant). Configure columns one
+                          report at a time so the page stays readable when a
+                          full-dept grant fans out to 10+ reports. */}
+                      <div className="bg-white rounded-2xl editorial-shadow border border-on-surface-variant/5 p-5">
+                        <label className="block">
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 block mb-1.5">
+                            Configure columns for
+                          </span>
+                          <select
+                            value={selectedColumnReportCode ?? ""}
+                            onChange={(e) => setSelectedColumnReportCode(e.target.value || null)}
+                            className="w-full py-2 px-3 bg-surface-container-low/50 rounded-xl border border-on-surface-variant/10 text-on-surface text-sm focus:outline-none focus:border-primary/30 focus:bg-white"
+                          >
+                            {grantedReportCodes.map((code) => {
+                              const sch = schemas[code];
+                              return (
+                                <option key={code} value={code}>
+                                  {sch?.name ?? code}
+                                  {sch ? ` · ${code}` : ""}
+                                </option>
+                              );
+                            })}
+                          </select>
+                        </label>
+                        <p className="text-[11px] text-on-surface-variant/50 mt-2">
+                          {grantedReportCodes.length} report{grantedReportCodes.length === 1 ? "" : "s"} granted by this policy. Column choices apply globally per report — picking a project here is a UI lens only.
+                        </p>
+                      </div>
+
+                      {/* Single-report card for the currently-selected code. */}
+                      {selectedColumnReportCode && (() => {
+                        const reportCode = selectedColumnReportCode;
+                        const schema = schemas[reportCode];
+                        const allowed = columnGrants[reportCode] ?? new Set<string>();
+                        return (
                         <div
                           key={reportCode}
                           className="bg-white rounded-2xl editorial-shadow border border-on-surface-variant/5 p-6"
@@ -992,8 +1078,9 @@ export default function AdminPolicyEditorPage() {
                             </>
                           )}
                         </div>
-                      );
-                    })
+                        );
+                      })()}
+                    </>
                   )}
                 </div>
               )}

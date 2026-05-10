@@ -57,6 +57,7 @@ export interface CatalogReport {
   description: string | null;
   reportType: string;
   icon: string | null;
+  category: string | null;
 }
 
 export function fetchCatalogProjects(): Promise<CatalogProject[]> {
@@ -125,12 +126,19 @@ export interface CatalogDepartmentSummary {
 }
 
 // Reports exposed to a user — used both for project-scoped and direct reports.
+//
+// `category` is an optional grouping code (e.g. "ivr") set by the report's
+// registration in `Program.cs` and surfaced through `CatalogController`.
+// When non-null the frontend groups same-category reports under a single
+// section header (see `IVR_CATEGORY_META` in `data/ivrPlaceholders.ts`).
+// Null = the report renders in the default "All reports" bucket.
 export interface CatalogReportSummary {
   code: string;
   name: string;
   description: string | null;
   reportType: string;
   icon: string | null;
+  category: string | null;
 }
 
 export const fetchCatalogDepartmentList = () =>

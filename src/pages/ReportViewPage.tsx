@@ -37,20 +37,21 @@ import {
   type ChartPoint,
   type SummaryData,
 } from "../services/api";
+import { formatSecondsAsMmSs } from "../utils/formatDuration";
 
 const PIE_COLORS = ["#2eb2ff", "#9f403d"];
 
 type ViewMode = "raw" | "interval" | "daily" | "weekly" | "monthly";
 
-type GroupedColumnKey = keyof GroupedRow | "ServiceLevel";
+type GroupedColumnKey = keyof GroupedRow;
 
+// Column order locked with Amir 2026-04-29 (PCA renamed from "Service Level" 2026-04-30):
+//   call time → skillset → offered → answered → abandoned → PCA →
+//   GOS → ATT → AWT → AHT → remaining columns.
 function getGroupedColumns(viewMode: ViewMode, groupBySkillset: boolean) {
   const cols: { key: GroupedColumnKey; label: string; width?: string }[] = [];
 
-  if (groupBySkillset) {
-    cols.push({ key: "SkillsetName", label: "Skillset Name", width: "160px" });
-  }
-
+  // 1. Call-time columns first
   if (viewMode === "interval") {
     cols.push({ key: "Date", label: "Date", width: "120px" });
     cols.push({ key: "Interval", label: "Interval", width: "80px" });
@@ -58,11 +59,22 @@ function getGroupedColumns(viewMode: ViewMode, groupBySkillset: boolean) {
     cols.push({ key: "Period", label: "Period", width: "150px" });
   }
 
+  // 2. Skillset (when grouped)
+  if (groupBySkillset) {
+    cols.push({ key: "SkillsetName", label: "Skillset Name", width: "160px" });
+  }
+
+  // 3. Volume → service metrics
   cols.push(
-    { key: "ServiceLevel", label: "Service Level", width: "100px" },
     { key: "Offered", label: "Offered", width: "80px" },
     { key: "Answered", label: "Answered", width: "80px" },
     { key: "Abandoned", label: "Abandoned", width: "90px" },
+    { key: "PCA", label: "PCA", width: "80px" },
+    { key: "GOS", label: "GOS", width: "80px" },
+    { key: "ATT", label: "ATT", width: "80px" },
+    { key: "AWT", label: "AWT", width: "80px" },
+    { key: "AHT", label: "AHT", width: "80px" },
+    // 4. Remaining detail columns
     { key: "WaitTime", label: "Wait Time", width: "90px" },
     { key: "PCPTime", label: "PCP Time", width: "80px" },
     { key: "PresentingTime", label: "Presenting", width: "90px" },
@@ -77,6 +89,23 @@ function getGroupedColumns(viewMode: ViewMode, groupBySkillset: boolean) {
 
   return cols;
 }
+
+// Display formatter for the 5 derived/computed metrics in the grouped table.
+// Returns a string (formatted) or a number (for plain numeric columns).
+// "—" indicates "no data" — Offered=0 for PCA/GOS, Answered=0 for ATT/AWT/AHT.
+// Duration metrics (ATT/AWT/AHT) render as mm:ss — call-center industry standard.
+function getDerivedDisplay(key: GroupedColumnKey, row: GroupedRow): string | number | null {
+  if (key === "PCA") return row.PCA == null ? "—" : `${row.PCA}%`;
+  if (key === "GOS") return row.GOS == null ? "—" : `${row.GOS}%`;
+  if (key === "ATT") return formatSecondsAsMmSs(row.ATT);
+  if (key === "AWT") return formatSecondsAsMmSs(row.AWT);
+  if (key === "AHT") return formatSecondsAsMmSs(row.AHT);
+  return row[key as keyof GroupedRow];
+}
+
+const DERIVED_KEYS: ReadonlySet<string> = new Set([
+  "PCA", "GOS", "ATT", "AWT", "AHT",
+]);
 
 function formatCellValue(_key: string, val: unknown): string {
   if (val === null || val === undefined) return "";
@@ -184,12 +213,16 @@ export default function ReportViewPage() {
   const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
   const [dateFrom, setDateFrom] = useState(yesterday);
   const [dateTo, setDateTo] = useState(today);
-  const [viewMode, setViewMode] = useState<ViewMode>("raw");
+  // "raw" temporarily hidden from the View segmented control below — default
+  // is "interval" until raw is re-enabled. Logic that branches on `viewMode === "raw"`
+  // is kept intact so re-enabling is a one-line revert.
+  const [viewMode, setViewMode] = useState<ViewMode>("interval");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
   const [loading, setLoading] = useState(false);
   const [groupBySkillset, setGroupBySkillset] = useState(true);
   const [intervalWidth, setIntervalWidth] = useState<15 | 30>(30);
+  const [workingHoursOnly, setWorkingHoursOnly] = useState(true);
 
   // Table data
   const [rawRows, setRawRows] = useState<Record<string, unknown>[]>([]);
@@ -199,7 +232,7 @@ export default function ReportViewPage() {
 
   // Chart & summary
   const [chartData, setChartData] = useState<ChartPoint[]>([]);
-  const [summary, setSummary] = useState<SummaryData>({ offered: 0, answered: 0, abandoned: 0, serviceLevel: 0 });
+  const [summary, setSummary] = useState<SummaryData>({ offered: 0, answered: 0, abandoned: 0, pca: 0 });
   const [chartMetric, setChartMetric] = useState<"Answered" | "Abandoned">("Answered");
 
   const handlePageChange = useCallback((page: number) => setCurrentPage(page), []);
@@ -215,7 +248,7 @@ export default function ReportViewPage() {
       setLoading(true);
       try {
         if (viewMode === "raw") {
-          const res = await fetchRawData(dateFrom, dateTo, currentPage, pageSize, projectId);
+          const res = await fetchRawData(dateFrom, dateTo, currentPage, pageSize, projectId, workingHoursOnly);
           if (!cancelled) {
             setRawRows(res.rows);
             setTotalItems(res.total);
@@ -226,7 +259,7 @@ export default function ReportViewPage() {
           }
         } else {
           const mode: GroupMode = viewMode as GroupMode;
-          const res = await fetchGroupedData(dateFrom, dateTo, mode, currentPage, pageSize, projectId, groupBySkillset, intervalWidth);
+          const res = await fetchGroupedData(dateFrom, dateTo, mode, currentPage, pageSize, projectId, groupBySkillset, intervalWidth, workingHoursOnly);
           if (!cancelled) {
             setGroupedRows(res.rows);
             setTotalItems(res.total);
@@ -242,7 +275,7 @@ export default function ReportViewPage() {
     }
     load();
     return () => { cancelled = true; };
-  }, [dateFrom, dateTo, viewMode, currentPage, pageSize, projectId, groupBySkillset, intervalWidth]);
+  }, [dateFrom, dateTo, viewMode, currentPage, pageSize, projectId, groupBySkillset, intervalWidth, workingHoursOnly]);
 
   // Fetch chart + summary (re-fetch when view mode / interval changes too)
   useEffect(() => {
@@ -251,8 +284,8 @@ export default function ReportViewPage() {
     async function load() {
       try {
         const [chart, sum] = await Promise.all([
-          fetchChartData(dateFrom, dateTo, projectId, chartMode, intervalWidth),
-          fetchSummary(dateFrom, dateTo, projectId),
+          fetchChartData(dateFrom, dateTo, projectId, chartMode, intervalWidth, workingHoursOnly),
+          fetchSummary(dateFrom, dateTo, projectId, workingHoursOnly),
         ]);
         if (!cancelled) {
           setChartData(chart);
@@ -264,12 +297,12 @@ export default function ReportViewPage() {
     }
     load();
     return () => { cancelled = true; };
-  }, [dateFrom, dateTo, projectId, viewMode, intervalWidth]);
+  }, [dateFrom, dateTo, projectId, viewMode, intervalWidth, workingHoursOnly]);
 
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [dateFrom, dateTo, viewMode, groupBySkillset, intervalWidth]);
+  }, [dateFrom, dateTo, viewMode, groupBySkillset, intervalWidth, workingHoursOnly]);
 
   if (catalogLoading) {
     return (
@@ -319,12 +352,6 @@ export default function ReportViewPage() {
 
     const available = new Set(Object.keys(groupedRows[0] as object));
     return allGroupedColumns.filter((col) => {
-      // ServiceLevel is computed client-side from Offered/Answered — it is not
-      // a real column in the SQL response, so it isn't controlled by the
-      // column policy directly. Show it when both of its inputs are visible.
-      if (col.key === "ServiceLevel") {
-        return available.has("Offered") && available.has("Answered");
-      }
       return available.has(col.key as string);
     });
   })();
@@ -393,7 +420,7 @@ export default function ReportViewPage() {
             </div>
             <div className={`flex items-center gap-2 shrink-0 transition-opacity ${totalItems === 0 ? "opacity-30 pointer-events-none" : ""}`} title={totalItems === 0 ? "No data to export" : undefined}>
               <button
-                onClick={() => downloadExport(dateFrom, dateTo, viewMode, projectId, groupBySkillset, intervalWidth, "excel", accent.displayName, accent.logoFilename)}
+                onClick={() => downloadExport(dateFrom, dateTo, viewMode, projectId, groupBySkillset, intervalWidth, "excel", accent.displayName, accent.logoFilename, workingHoursOnly)}
                 disabled={totalItems === 0}
                 className="bg-accent text-white px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 hover:opacity-90 transition-all shadow-lg disabled:cursor-not-allowed"
                 style={{ boxShadow: `0 4px 20px ${accent.color}25` }}
@@ -402,7 +429,7 @@ export default function ReportViewPage() {
                 Excel
               </button>
               <button
-                onClick={() => downloadExport(dateFrom, dateTo, viewMode, projectId, groupBySkillset, intervalWidth, "pdf", accent.displayName, accent.logoFilename)}
+                onClick={() => downloadExport(dateFrom, dateTo, viewMode, projectId, groupBySkillset, intervalWidth, "pdf", accent.displayName, accent.logoFilename, workingHoursOnly)}
                 disabled={totalItems === 0}
                 className="bg-accent text-white px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 hover:opacity-90 transition-all shadow-lg disabled:cursor-not-allowed"
                 style={{ boxShadow: `0 4px 20px ${accent.color}25` }}
@@ -447,7 +474,7 @@ export default function ReportViewPage() {
                 View
               </label>
               <div className="flex rounded-xl overflow-hidden border border-on-surface-variant/8">
-                {(["raw", "interval", "daily", "weekly", "monthly"] as const).map((opt) => (
+                {(["interval", "daily", "weekly", "monthly"] as const).map((opt) => (
                   <button
                     key={opt}
                     onClick={() => setViewMode(opt)}
@@ -457,7 +484,7 @@ export default function ReportViewPage() {
                         : "bg-surface-container-high/50 text-on-surface-variant hover:bg-surface-container-high"
                     }`}
                   >
-                    {opt === "raw" ? "Raw" : opt}
+                    {opt}
                   </button>
                 ))}
               </div>
@@ -466,6 +493,26 @@ export default function ReportViewPage() {
 
           {/* Row 2: Toggles + record count */}
           <div className="flex items-center gap-6 pt-2 border-t border-on-surface-variant/6">
+            {/* Toggle: Working Hours Only — restrict every metric to rows inside the
+                project's defined working window (normal / weekend / public-holiday). */}
+            <div className="flex items-center gap-2.5">
+              <label
+                className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 whitespace-nowrap cursor-help"
+                title="Counts only calls inside each project's defined operating hours (normal / weekend / public holiday)."
+              >
+                Working Hours
+              </label>
+              <button
+                onClick={() => setWorkingHoursOnly(!workingHoursOnly)}
+                className={`relative w-10 h-[22px] rounded-full transition-colors ${workingHoursOnly ? "" : "bg-on-surface-variant/20"}`}
+                style={workingHoursOnly ? { backgroundColor: accent.color } : undefined}
+              >
+                <span className={`absolute top-[2px] left-[2px] w-[18px] h-[18px] bg-white rounded-full shadow transition-transform ${workingHoursOnly ? "translate-x-[18px]" : ""}`} />
+              </button>
+            </div>
+
+            <div className="w-px h-5 bg-on-surface-variant/10" />
+
             {/* Toggle: Group by Skillset */}
             <div className={`flex items-center gap-2.5 transition-opacity ${isRaw ? "opacity-30 pointer-events-none" : ""}`}>
               <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 whitespace-nowrap">
@@ -540,10 +587,10 @@ export default function ReportViewPage() {
             </div>
             <div>
               <p className="eyebrow-sm text-on-surface-variant/50 mb-1">
-                Service Level
+                PCA
               </p>
               <p className="text-2xl font-black text-on-surface tracking-tight">
-                {summary.serviceLevel}%
+                {summary.pca}%
               </p>
             </div>
           </div>
@@ -772,10 +819,10 @@ export default function ReportViewPage() {
                       className="border-t border-on-surface-variant/4 hover:bg-surface-container-low/50 transition-colors"
                     >
                       {activeGroupedColumns.map((col) => {
-                        const val = col.key === "ServiceLevel"
-                          ? (row.Offered > 0 ? `${Math.round((row.Answered / row.Offered) * 1000) / 10}%` : "—")
+                        const val = DERIVED_KEYS.has(col.key)
+                          ? getDerivedDisplay(col.key, row)
                           : row[col.key as keyof GroupedRow];
-                        const isNumber = typeof val === "number" || col.key === "ServiceLevel";
+                        const isNumber = typeof val === "number" || DERIVED_KEYS.has(col.key);
                         return (
                           <td
                             key={col.key}
