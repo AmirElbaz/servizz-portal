@@ -1,6 +1,7 @@
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigationType } from "react-router-dom";
 import { useEffect, lazy, Suspense } from "react";
 import { AuthProvider } from "./services/auth";
+import { PermissionProvider } from "./services/permissions";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminOnly from "./components/admin/AdminOnly";
 import LoginPage from "./pages/LoginPage";
@@ -13,9 +14,11 @@ import HrTemplateDesignerPage from "./pages/hr/HrTemplateDesignerPage";
 import HrRecordDetailPage from "./pages/hr/HrRecordDetailPage";
 import ProjectDetailPage from "./pages/ProjectDetailPage";
 import ReportViewPage from "./pages/ReportViewPage";
+import AbandonedWithin5sReportPage from "./pages/AbandonedWithin5sReportPage";
 import IvrTrendComparisonPreviewPage from "./pages/IvrTrendComparisonPreviewPage";
 import IvrFunnelPreviewPage from "./pages/IvrFunnelPreviewPage";
 import HourlyDistributionPreviewPage from "./pages/HourlyDistributionPreviewPage";
+import ModuleFileUploadsPage from "./pages/ModuleFileUploadsPage";
 
 // Admin pages are lazy-loaded — they ship a separate chunk so non-admins
 // never download the code.
@@ -33,14 +36,55 @@ function AdminFallback() {
   );
 }
 
-function ScrollToTop() {
-  const { pathname } = useLocation();
+// Browser-back / forward should land the user where they were, not at
+// the top. Behavior (Amir 2026-05-13, applies to every page in the app):
+//   - PUSH / REPLACE (forward nav, link click) → scroll to top.
+//   - POP (browser back/forward) → restore the saved scroll position for
+//     that history entry, or 0 if we never saved one.
+//
+// Positions are keyed by `location.key`, which is unique per history
+// entry. SessionStorage is the backing store so positions survive a
+// full-page reload of the same tab but not a new tab.
+//
+// We disable the browser's native scroll restoration on mount because
+// it competes with this one and re-introduces the same "jumps to top"
+// behavior on certain Vite/HMR reloads.
+function ScrollRestoration() {
+  const location = useLocation();
+  const navigationType = useNavigationType();
 
+  // Disable native restoration once, on mount.
   useEffect(() => {
-    if (pathname.startsWith("/project/") || pathname.startsWith("/department/")) {
-      window.scrollTo(0, 0);
+    if ("scrollRestoration" in window.history) {
+      window.history.scrollRestoration = "manual";
     }
-  }, [pathname]);
+  }, []);
+
+  // React to navigation. Run after layout so the new page has rendered.
+  useEffect(() => {
+    const key = `scroll:${location.key}`;
+    if (navigationType === "POP") {
+      const saved = sessionStorage.getItem(key);
+      if (saved !== null) {
+        const y = parseInt(saved, 10);
+        if (!Number.isNaN(y)) {
+          requestAnimationFrame(() => window.scrollTo(0, y));
+          return;
+        }
+      }
+    }
+    window.scrollTo(0, 0);
+  }, [location.key, navigationType]);
+
+  // Persist the scroll position for the current history entry on every
+  // scroll. Passive listener — never blocks scroll performance.
+  useEffect(() => {
+    const onScroll = () => {
+      sessionStorage.setItem(`scroll:${location.key}`, String(window.scrollY));
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [location.key]);
 
   return null;
 }
@@ -77,8 +121,9 @@ function LegacyProjectRedirect() {
 export default function App() {
   return (
     <AuthProvider>
+      <PermissionProvider>
       <BrowserRouter>
-        <ScrollToTop />
+        <ScrollRestoration />
         <Routes>
           <Route path="/" element={<LoginPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -101,6 +146,21 @@ export default function App() {
           <Route
             path="/department/:deptCode/report/:reportCode"
             element={<ProtectedRoute><ReportViewPage /></ProtectedRoute>}
+          />
+
+          {/* ── Abandoned Calls Within 5 Seconds of Reaching Queue ──
+                Dedicated page (no pie, 4-col table, hourly/daily/monthly/
+                yearly). Two URL shapes mirror the generic report routes;
+                React Router's static-segment ranking makes these win over
+                the generic /report/:reportCode above so ReportViewPage
+                never renders this report. */}
+          <Route
+            path="/department/:deptCode/report/abandoned-within-5s"
+            element={<ProtectedRoute><AbandonedWithin5sReportPage /></ProtectedRoute>}
+          />
+          <Route
+            path="/department/:deptCode/project/:projectCode/report/abandoned-within-5s"
+            element={<ProtectedRoute><AbandonedWithin5sReportPage /></ProtectedRoute>}
           />
 
           {/* ── IVR Trend & Comparison ── */}
@@ -127,16 +187,43 @@ export default function App() {
             element={<ProtectedRoute><IvrTrendComparisonPreviewPage /></ProtectedRoute>}
           />
 
-          {/* ── IVR Funnel — preview only (mock data) ── */}
+          {/* ── IVR Funnel — three URL shapes (mirrors trend-comparison) ──
+                - /preview/ivr-funnel (legacy preview alias, no context)
+                - /department/:deptCode/report/ivr-funnel (dept-direct)
+                - /department/:deptCode/project/:projectCode/report/ivr-funnel
+              The page reads the URL params so it can render the project logo
+              when reached via the project-scoped link.                       */}
           <Route
             path="/preview/ivr-funnel"
             element={<ProtectedRoute><IvrFunnelPreviewPage /></ProtectedRoute>}
           />
+          <Route
+            path="/department/:deptCode/report/ivr-funnel"
+            element={<ProtectedRoute><IvrFunnelPreviewPage /></ProtectedRoute>}
+          />
+          <Route
+            path="/department/:deptCode/project/:projectCode/report/ivr-funnel"
+            element={<ProtectedRoute><IvrFunnelPreviewPage /></ProtectedRoute>}
+          />
 
-          {/* ── Hourly Distribution — preview only (mock data) ── */}
+          {/* ── Hourly Distribution — same 3-route shape as IVR Funnel. ── */}
           <Route
             path="/preview/hourly-distribution"
             element={<ProtectedRoute><HourlyDistributionPreviewPage /></ProtectedRoute>}
+          />
+          <Route
+            path="/department/:deptCode/report/hourly-distribution"
+            element={<ProtectedRoute><HourlyDistributionPreviewPage /></ProtectedRoute>}
+          />
+          <Route
+            path="/department/:deptCode/project/:projectCode/report/hourly-distribution"
+            element={<ProtectedRoute><HourlyDistributionPreviewPage /></ProtectedRoute>}
+          />
+
+          {/* ── Generic file_uploads module (BDF Reports etc.) ── */}
+          <Route
+            path="/department/:deptCode/module/:moduleCode"
+            element={<ProtectedRoute><ModuleFileUploadsPage /></ProtectedRoute>}
           />
 
           {/* ── Templates module (HR) ── */}
@@ -251,6 +338,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
+      </PermissionProvider>
     </AuthProvider>
   );
 }

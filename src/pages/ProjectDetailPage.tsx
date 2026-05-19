@@ -156,17 +156,80 @@ export default function ProjectDetailPage() {
         </section>
 
         {/* ── Reports ── */}
-        {/* Project pages always render the IVR group (Operation owns the
-            inbound voice analytics bundle, and every operation project
-            inherits the same set). The "Other" section below collects
-            anything outside the IVR category — e.g., the existing
-            skillset-historical report. */}
+        {/* Three category buckets render in this fixed order:
+              1. Skillset reports (header + grid; project's --accent)
+              2. IVR & Queue Analytics (delegated to IvrCategorySection)
+              3. Other reports (catch-all, hidden when empty)
+            Skillset comes first because it's the primary operational lens —
+            historical service-level / agent performance is the daily-read
+            report. The IVR bundle is secondary depth and "Other" is for
+            anything outside both categories. */}
         {(() => {
+          const skillsetReports = reports.filter((r) => r.category === "skillset");
           const ivrReports = reports.filter((r) => r.category === "ivr");
-          const otherReports = reports.filter((r) => r.category !== "ivr");
+          const otherReports = reports.filter(
+            (r) => r.category !== "skillset" && r.category !== "ivr",
+          );
+          const accent = project.color;
+
+          const reportCardClass =
+            "group prism-surface relative rounded-2xl p-6 no-underline card-lift overflow-hidden hover:border-accent-50";
+
+          const renderReportCard = (r: CatalogReportSummary) => (
+            <Link
+              key={r.code}
+              to={`/department/${deptCode}/project/${projectCode}/report/${r.code}`}
+              className={reportCardClass}
+            >
+              <div
+                className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+                style={{ boxShadow: `0 0 40px ${accent}15` }}
+              />
+              <div className="relative">
+                <div
+                  className="w-12 h-12 rounded-xl flex items-center justify-center mb-3 transition-all duration-300"
+                  style={{ backgroundColor: `${accent}15`, color: accent }}
+                >
+                  <span className="material-symbols-outlined text-[22px]">
+                    {r.icon || "bar_chart"}
+                  </span>
+                </div>
+                <h5 className="font-bold text-on-surface text-sm mb-1">{r.name}</h5>
+                {r.description && (
+                  <p className="text-[11px] text-on-surface-variant/60 leading-relaxed">
+                    {r.description}
+                  </p>
+                )}
+              </div>
+            </Link>
+          );
 
           return (
             <>
+              {skillsetReports.length > 0 && (
+                <section className="mb-10">
+                  <div className="flex items-center gap-3 mb-2">
+                    <span
+                      className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                      style={{ backgroundColor: `${accent}15`, color: accent }}
+                    >
+                      <span className="material-symbols-outlined text-lg">
+                        groups
+                      </span>
+                    </span>
+                    <h2 className="text-xl font-bold font-headline text-on-surface tracking-tight">
+                      Skillset reports
+                    </h2>
+                  </div>
+                  <p className="text-[12px] text-on-surface-variant/60 leading-relaxed mb-5 max-w-2xl pl-12">
+                    Historical service-level and agent-performance views per skillset.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {skillsetReports.map(renderReportCard)}
+                  </div>
+                </section>
+              )}
+
               <IvrCategorySection
                 realReports={ivrReports}
                 linkBuilder={(code) =>
@@ -174,46 +237,26 @@ export default function ProjectDetailPage() {
                 }
               />
 
-              <section>
-                <h2 className="text-xl font-bold font-headline text-on-surface tracking-tight mb-6">
-                  {ivrReports.length > 0 ? "Other reports" : "Reports"}
-                </h2>
-                {otherReports.length === 0 ? (
+              {otherReports.length > 0 && (
+                <section>
+                  <h2 className="text-xl font-bold font-headline text-on-surface tracking-tight mb-6">
+                    Other reports
+                  </h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {otherReports.map(renderReportCard)}
+                  </div>
+                </section>
+              )}
+
+              {skillsetReports.length === 0 &&
+                ivrReports.length === 0 &&
+                otherReports.length === 0 && (
                   <div className="prism-surface rounded-2xl p-10 text-center">
                     <p className="text-sm text-on-surface-variant/60">
-                      No additional reports are available in this project for your access level.
+                      No reports are available in this project for your access level.
                     </p>
                   </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {otherReports.map((r) => (
-                      <Link
-                        key={r.code}
-                        to={`/department/${deptCode}/project/${projectCode}/report/${r.code}`}
-                        className="group prism-surface relative rounded-2xl p-6 no-underline card-lift overflow-hidden hover:border-accent-50"
-                      >
-                        <div
-                          className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
-                          style={{ boxShadow: `0 0 40px ${project.color}15` }}
-                        />
-                        <div className="relative">
-                          <div className="w-12 h-12 bg-surface-container-high rounded-xl flex items-center justify-center mb-3 text-on-surface-variant group-hover:bg-accent group-hover:text-white transition-all duration-300">
-                            <span className="material-symbols-outlined text-[22px]">
-                              {r.icon || "bar_chart"}
-                            </span>
-                          </div>
-                          <h5 className="font-bold text-on-surface text-sm mb-1">{r.name}</h5>
-                          {r.description && (
-                            <p className="text-[11px] text-on-surface-variant/60 leading-relaxed">
-                              {r.description}
-                            </p>
-                          )}
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
                 )}
-              </section>
             </>
           );
         })()}

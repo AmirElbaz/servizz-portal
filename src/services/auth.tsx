@@ -1,5 +1,7 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
 
+export type SignupStatus = "invited" | "email_pending" | "active";
+
 export interface User {
   id: number;
   username: string;
@@ -10,20 +12,23 @@ export interface User {
   role: string | null;
   projectName: string | null;
   isAdmin: boolean;
-  requiresSignupCompletion: boolean;
+  signupStatus: SignupStatus;
+  emailVerified: boolean;
 }
 
 interface AuthContextType {
   user: User | null;
   token: string | null;
-  login: (username: string, password: string) => Promise<void>;
+  login: (username: string, password: string) => Promise<User>;
   logout: () => void;
   isAuthenticated: boolean;
-  completeSignup: (
-    firstName: string,
-    lastName: string,
-    newPassword: string
-  ) => Promise<void>;
+  // The signup flow consists of three independent backend calls (email,
+  // verify-otp, password). We expose them on the context so any page can
+  // drive the flow — currently CompleteSignupPage owns the UX.
+  submitSignupEmail: (email: string, confirmEmail: string) => Promise<void>;
+  resendSignupOtp: () => Promise<void>;
+  verifySignupOtp: (code: string) => Promise<void>;
+  setSignupPassword: (newPassword: string, confirmPassword: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>(null!);
@@ -39,7 +44,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // existed need sensible defaults so route guards don't misfire.
     return {
       isAdmin: false,
-      requiresSignupCompletion: false,
+      signupStatus: "active" as SignupStatus,
+      emailVerified: !!parsed.email,
       firstName: null,
       lastName: null,
       ...parsed,
@@ -74,6 +80,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const data = await res.json();
     setToken(data.token);
     setUser(data.user);
+    // Return the user so the caller can route based on signupStatus
+    // without waiting for the React state update to propagate.
+    return data.user as User;
   }
 
   function logout() {
@@ -83,27 +92,61 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("user");
   }
 
-  // Admin-invited users sign in with a temp password, then hit this to
-  // finish their profile and pick a permanent password. The backend issues
-  // a fresh JWT in the response so we don't force a round-trip re-login.
-  async function completeSignup(firstName: string, lastName: string, newPassword: string) {
-    const res = await fetch(`${BASE_URL}/Auth/complete-signup`, {
-      method: "POST",
+  // ── Signup-completion flow ──────────────────────────────────────────────
+  //
+  // Each step is a separate call so the UI can render distinct screens
+  // (email → OTP → password). All three require the current JWT — users
+  // are authenticated with their temp password before entering the flow.
+
+  async function authJson(url: string, method: string, body: unknown) {
+    const res = await fetch(`${BASE_URL}${url}`, {
+      method,
       headers: {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify({ firstName, lastName, newPassword }),
+      body: JSON.stringify(body),
     });
-
+    if (res.status === 204) return null;
+    const data = await res.json().catch(() => null);
     if (!res.ok) {
-      const err = await res.json().catch(() => null);
-      throw new Error(err?.message ?? "Failed to complete signup");
+      throw new Error(data?.message ?? `Request failed: ${res.status}`);
     }
+    return data;
+  }
 
-    const data = await res.json();
-    setToken(data.token);
-    setUser(data.user);
+  async function submitSignupEmail(email: string, confirmEmail: string) {
+    await authJson("/Auth/signup/email", "POST", { email, confirmEmail });
+    // We don't trust the backend's signupStatus echo here — we'll re-fetch
+    // on the next login. For now, optimistically advance the local copy so
+    // the UI moves to the OTP step.
+    setUser((prev) =>
+      prev ? { ...prev, signupStatus: "email_pending" } : prev
+    );
+  }
+
+  async function resendSignupOtp() {
+    await authJson("/Auth/signup/resend-otp", "POST", {});
+  }
+
+  async function verifySignupOtp(code: string) {
+    const data = await authJson("/Auth/signup/verify-otp", "POST", { code });
+    if (data?.email) {
+      setUser((prev) =>
+        prev ? { ...prev, email: data.email, emailVerified: true } : prev
+      );
+    }
+  }
+
+  async function setSignupPassword(newPassword: string, confirmPassword: string) {
+    await authJson("/Auth/signup/password", "POST", {
+      newPassword,
+      confirmPassword,
+    });
+    // The backend deliberately doesn't issue a fresh JWT here — onboarding
+    // and "real" session are intentionally split. Clear local state so the
+    // app routes back to /login for a clean sign-in.
+    logout();
   }
 
   return (
@@ -114,7 +157,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         logout,
         isAuthenticated: !!token,
-        completeSignup,
+        submitSignupEmail,
+        resendSignupOtp,
+        verifySignupOtp,
+        setSignupPassword,
       }}
     >
       {children}

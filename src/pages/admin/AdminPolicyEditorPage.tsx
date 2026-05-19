@@ -8,6 +8,7 @@ import ViewBadge from "../../components/admin/ViewBadge";
 import ErrorBanner from "../../components/admin/ErrorBanner";
 import Skeleton from "../../components/admin/Skeleton";
 import Paginator from "../../components/ui/Paginator";
+import { fmt } from "../../utils/fmt";
 import {
   getPolicyWithEtag,
   createPolicy,
@@ -28,7 +29,9 @@ import {
   type ReportSchema,
 } from "../../services/admin";
 
-type Tab = "access" | "columns" | "users";
+import PolicyPermissionsTab from "../../components/admin/PolicyPermissionsTab";
+
+type Tab = "access" | "columns" | "permissions" | "users";
 
 export default function AdminPolicyEditorPage() {
   const { id } = useParams<{ id: string }>();
@@ -94,6 +97,7 @@ export default function AdminPolicyEditorPage() {
   // back to page 1 — pagination only affects what's rendered, not state.
   const [usersPage, setUsersPage] = useState(1);
   const [usersPageSize, setUsersPageSize] = useState(15);
+  const [usersSearch, setUsersSearch] = useState("");
 
   async function loadAll() {
     try {
@@ -681,6 +685,13 @@ export default function AdminPolicyEditorPage() {
                     Columns
                   </TabButton>
                   <TabButton
+                    active={tab === "permissions"}
+                    onClick={() => setTab("permissions")}
+                    icon="key"
+                  >
+                    Permissions
+                  </TabButton>
+                  <TabButton
                     active={tab === "users"}
                     onClick={() => setTab("users")}
                     icon="group"
@@ -1085,11 +1096,28 @@ export default function AdminPolicyEditorPage() {
                 </div>
               )}
 
+              {tab === "permissions" && id && id !== "new" && (
+                <PolicyPermissionsTab policyId={Number(id)} />
+              )}
+
               {tab === "users" && (() => {
-                const totalUsers = allUsers.length;
+                // Filter by search term against username, fullName, and email.
+                // Pagination then operates on the filtered set, so search
+                // results page through cleanly. Reset to page 1 when the
+                // term changes (handled by the input's onChange below).
+                const q = usersSearch.trim().toLowerCase();
+                const filteredUsers = q.length === 0
+                  ? allUsers
+                  : allUsers.filter((u) =>
+                      (u.username ?? "").toLowerCase().includes(q) ||
+                      (u.fullName ?? "").toLowerCase().includes(q) ||
+                      (u.email    ?? "").toLowerCase().includes(q)
+                    );
+                const totalUsers = filteredUsers.length;
+                const totalAllUsers = allUsers.length;
                 const attachedCount = grantedUserIds.size;
                 const start = (usersPage - 1) * usersPageSize;
-                const pagedUsers = allUsers.slice(start, start + usersPageSize);
+                const pagedUsers = filteredUsers.slice(start, start + usersPageSize);
                 return (
                   <div className="bg-white rounded-2xl editorial-shadow border border-on-surface-variant/5 p-6">
                     <div className="flex items-center justify-between mb-5 gap-3 flex-wrap">
@@ -1099,7 +1127,7 @@ export default function AdminPolicyEditorPage() {
                           Users attached to this policy inherit its grants.
                           {attachedCount > 0 && (
                             <span className="ml-1 font-semibold text-primary">
-                              {attachedCount} of {totalUsers} selected.
+                              {fmt.int(attachedCount)} of {fmt.int(totalAllUsers)} selected.
                             </span>
                           )}
                         </p>
@@ -1111,6 +1139,25 @@ export default function AdminPolicyEditorPage() {
                       >
                         Save Users
                       </SaveButton>
+                    </div>
+                    <div className="mb-4 relative">
+                      <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50 text-[18px] pointer-events-none">
+                        search
+                      </span>
+                      <input
+                        type="search"
+                        value={usersSearch}
+                        onChange={(e) => { setUsersSearch(e.target.value); setUsersPage(1); }}
+                        placeholder="Search by name, username, or email…"
+                        className="w-full py-2 pl-10 pr-3 bg-surface-container-high/40 rounded-xl border border-on-surface-variant/10 text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:border-primary"
+                      />
+                      {q.length > 0 && (
+                        <p className="text-[11px] text-on-surface-variant/60 mt-1.5">
+                          {totalUsers === 0
+                            ? `No users match "${usersSearch}".`
+                            : `${fmt.int(totalUsers)} of ${fmt.int(totalAllUsers)} users match.`}
+                        </p>
+                      )}
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {pagedUsers.map((u) => {

@@ -214,6 +214,54 @@
     background: linear-gradient(135deg, #2eb2ff 0%, #0b8dd6 100%);
   }
 
+  /* ── Global table utilities ──
+     Canonical classes for every report and admin table. Numeric cells get a
+     darker text, slightly larger size, and tabular-nums so columns of figures
+     line up; rows shrink vertically so tables read more compact. The token
+     #1a2024 is one step darker than --color-on-surface (#2a3439) — used only
+     here to make numeric values dominate the visual hierarchy.
+     ----------------------------------------------------------------------- */
+  .tbl              { width: 100%; text-align: left; }
+  .tbl-th {
+    padding: 0.5rem 1rem;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: color-mix(in srgb, var(--color-on-surface-variant) 60%, transparent);
+    white-space: nowrap;
+  }
+  .tbl-tr {
+    border-top: 1px solid color-mix(in srgb, var(--color-on-surface-variant) 6%, transparent);
+    transition: background-color 150ms ease;
+  }
+  .tbl-tr:hover {
+    background-color: color-mix(in srgb, var(--color-surface-container-low) 50%, transparent);
+  }
+  .tbl-td {
+    padding: 0.5rem 1rem;
+    font-size: 13px;
+    color: var(--color-on-surface-variant);
+    white-space: nowrap;
+  }
+  .tbl-td-strong {
+    padding: 0.5rem 1rem;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-on-surface);
+    white-space: nowrap;
+  }
+  .tbl-td-num {
+    padding: 0.5rem 1rem;
+    font-size: 13px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+    text-align: right;
+    color: #1a2024;
+    white-space: nowrap;
+  }
+
   .scrollbar-hide::-webkit-scrollbar { display: none; }
   .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 

@@ -4,8 +4,8 @@ import { useAuth } from "../services/auth";
 // Gates authenticated routes.
 //
 //   - Not authenticated → send to /
-//   - Authenticated but requires signup completion → send to /complete-signup
-//     (unless they're already there, to avoid a redirect loop)
+//   - Authenticated but mid-onboarding (signupStatus !== "active")
+//     → send to /complete-signup unless already there (avoid redirect loop)
 //   - Otherwise → render the children
 export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, user } = useAuth();
@@ -15,7 +15,11 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
     return <Navigate to="/" replace />;
   }
 
-  if (user?.requiresSignupCompletion && location.pathname !== "/complete-signup") {
+  if (
+    user?.signupStatus &&
+    user.signupStatus !== "active" &&
+    location.pathname !== "/complete-signup"
+  ) {
     return <Navigate to="/complete-signup" replace />;
   }
 

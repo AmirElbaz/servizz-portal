@@ -2,6 +2,10 @@ import { type FormEvent, useState, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../services/auth";
 
+// PIN-code login is hidden until the backend feature ships. Flip
+// SHOW_PIN_TAB to true to re-enable the tab and the digit-entry form.
+const SHOW_PIN_TAB = false;
+
 type LoginMode = "credentials" | "bankcode";
 
 export default function LoginPage() {
@@ -41,11 +45,18 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
 
-    const fullEmail = username.includes("@") ? username : `${username}@centrecom.eu`;
-
     try {
-      await login(fullEmail, password);
-      navigate("/dashboard");
+      // Backend matches on username OR email, case-insensitive — send the
+      // raw input either way.
+      const loggedInUser = await login(username.trim(), password);
+      // Users mid-onboarding go to the signup-completion flow; everyone
+      // else lands on the dashboard. ProtectedRoute enforces the same
+      // rule as a backstop, but routing here avoids one extra navigation.
+      if (loggedInUser.signupStatus && loggedInUser.signupStatus !== "active") {
+        navigate("/complete-signup");
+      } else {
+        navigate("/dashboard");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {
@@ -185,35 +196,37 @@ export default function LoginPage() {
                     </p>
                   </div>
 
-                  {/* ── Tab Switcher ── */}
-                  <div className="grid grid-cols-2 gap-2 mb-7">
-                    <button
-                      onClick={() => setMode("credentials")}
-                      className={`flex flex-col items-center gap-1.5 py-3.5 rounded-xl text-sm font-semibold transition-all ${
-                        mode === "credentials"
-                          ? "bg-primary/8 text-primary border-2 border-primary/20"
-                          : "bg-surface-container-high/40 text-on-surface-variant/50 border-2 border-transparent hover:bg-surface-container-high/70"
-                      }`}
-                    >
-                      <span className="material-symbols-outlined text-[22px]" style={mode === "credentials" ? { fontVariationSettings: "'FILL' 1" } : undefined}>
-                        passkey
-                      </span>
-                      Username &amp; Password
-                    </button>
-                    <button
-                      onClick={() => setMode("bankcode")}
-                      className={`flex flex-col items-center gap-1.5 py-3.5 rounded-xl text-sm font-semibold transition-all ${
-                        mode === "bankcode"
-                          ? "bg-primary/8 text-primary border-2 border-primary/20"
-                          : "bg-surface-container-high/40 text-on-surface-variant/50 border-2 border-transparent hover:bg-surface-container-high/70"
-                      }`}
-                    >
-                      <span className="material-symbols-outlined text-[22px]" style={mode === "bankcode" ? { fontVariationSettings: "'FILL' 1" } : undefined}>
-                        pin
-                      </span>
-                       PIN Code
-                    </button>
-                  </div>
+                  {/* ── Tab Switcher (PIN tab hidden until feature ships) ── */}
+                  {SHOW_PIN_TAB && (
+                    <div className="grid grid-cols-2 gap-2 mb-7">
+                      <button
+                        onClick={() => setMode("credentials")}
+                        className={`flex flex-col items-center gap-1.5 py-3.5 rounded-xl text-sm font-semibold transition-all ${
+                          mode === "credentials"
+                            ? "bg-primary/8 text-primary border-2 border-primary/20"
+                            : "bg-surface-container-high/40 text-on-surface-variant/50 border-2 border-transparent hover:bg-surface-container-high/70"
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-[22px]" style={mode === "credentials" ? { fontVariationSettings: "'FILL' 1" } : undefined}>
+                          passkey
+                        </span>
+                        Username &amp; Password
+                      </button>
+                      <button
+                        onClick={() => setMode("bankcode")}
+                        className={`flex flex-col items-center gap-1.5 py-3.5 rounded-xl text-sm font-semibold transition-all ${
+                          mode === "bankcode"
+                            ? "bg-primary/8 text-primary border-2 border-primary/20"
+                            : "bg-surface-container-high/40 text-on-surface-variant/50 border-2 border-transparent hover:bg-surface-container-high/70"
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-[22px]" style={mode === "bankcode" ? { fontVariationSettings: "'FILL' 1" } : undefined}>
+                          pin
+                        </span>
+                         PIN Code
+                      </button>
+                    </div>
+                  )}
 
                   {/* Error message */}
                   {error && (
@@ -228,25 +241,23 @@ export default function LoginPage() {
                     <div className="min-h-[290px]">
                     {mode === "credentials" ? (
                       <div className="space-y-5">
-                        {/* Email */}
+                        {/* Username or email */}
                         <div className="space-y-2">
                           <label className="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/60 block">
-                            Email
+                            Username or Email
                           </label>
-                          <div className="relative group bg-surface-container-high/60 rounded-xl border border-on-surface-variant/8 focus-within:border-primary/30 focus-within:bg-white focus-within:shadow-[0_0_20px_rgba(46,178,255,0.08)] transition-all flex items-stretch overflow-hidden">
-                            <span className="material-symbols-outlined flex-none self-center pl-4 pr-2 text-on-surface-variant/30 group-focus-within:text-primary transition-colors text-[20px]">
-                              mail
+                          <div className="relative group">
+                            <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/30 group-focus-within:text-primary transition-colors text-[20px]">
+                              person
                             </span>
                             <input
-                              className="flex-1 min-w-0 pl-2 pr-3 py-3.5 bg-transparent border-0 text-on-surface placeholder:text-on-surface-variant/30 font-medium text-sm focus:outline-none"
-                              placeholder="Enter your ID"
+                              className="w-full pl-12 pr-4 py-3.5 bg-surface-container-high/60 rounded-xl border border-on-surface-variant/8 text-on-surface placeholder:text-on-surface-variant/30 font-medium text-sm focus:outline-none focus:border-primary/30 focus:bg-white focus:shadow-[0_0_20px_rgba(46,178,255,0.08)] transition-all"
+                              placeholder="Username or Email"
                               type="text"
+                              autoComplete="username"
                               value={username}
                               onChange={(e) => setUsername(e.target.value)}
                             />
-                            <span className="flex-none inline-flex items-center pl-2 pr-4 text-on-surface-variant/50 text-sm font-medium select-none whitespace-nowrap border-l border-on-surface-variant/8">
-                              @centrecom.eu
-                            </span>
                           </div>
                         </div>
 
@@ -332,15 +343,6 @@ export default function LoginPage() {
                     </button>
                   </form>
 
-                  {/* Bottom */}
-                  <div className="mt-7 text-center">
-                    <p className="text-sm text-on-surface-variant/50">
-                      New to the portal?{" "}
-                      <a className="text-primary font-semibold hover:text-primary-dim transition-colors" href="#">
-                        Request Access
-                      </a>
-                    </p>
-                  </div>
                 </div>
               </div>
             </div>

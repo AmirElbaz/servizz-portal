@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { fmt } from "../../utils/fmt";
 import {
   DndContext,
   closestCenter,
@@ -456,7 +457,7 @@ export default function HrTemplateDesignerPage() {
             <div className="min-w-0 text-sm">
               <p className="font-bold text-on-surface">Design is locked.</p>
               <p className="text-on-surface-variant/70 mt-0.5 leading-relaxed">
-                This template has <strong className="text-on-surface">{template.recordCount}</strong>{" "}
+                This template has <strong className="text-on-surface">{fmt.int(template.recordCount)}</strong>{" "}
                 {template.recordCount === 1 ? "record" : "records"} filed against
                 it. Adding, editing, or removing fields and sections is disabled to
                 keep record data consistent. You can still rename the template,

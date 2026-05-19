@@ -161,6 +161,67 @@ requirement unless the user explicitly overrides it for a specific task.
 - Until those passes ship, do not design new admin pages that require
   horizontal scrolling on mobile.
 
+## Report-style pages must use `<ReportPageHeader>`
+
+- Every report viewer (`ReportViewPage`, IVR previews, Hourly Distribution,
+  any future report page) renders its header through
+  `src/components/reports/ReportPageHeader.tsx`. Do not hand-roll the
+  breadcrumb + title + identity-tile layout inside a page component.
+- The header always shows an identity tile that prefers the project logo
+  (`project.logo` from the catalog) and falls back to the department icon
+  via `<DepartmentIcon>` for dept-direct URLs with no project. Placement
+  is responsive: on desktop (≥ sm) it sits at 80–96px between the title
+  block and the action buttons, separated from the buttons by a thin
+  vertical divider. On mobile (column stack) it shrinks to 56px and sits
+  inline-left of the title. Don't relocate the tile per-page — every report
+  page wears the same identity treatment.
+- Breadcrumb pieces are composed via the exported
+  `<BreadcrumbLink>`, `<BreadcrumbStatic>`, `<BreadcrumbChevron>`,
+  `<BreadcrumbCurrent>` helpers from the same file. Don't inline the
+  `text-on-surface-variant/50 hover:text-on-surface` styling — every divergence
+  causes drift.
+- The `actions` slot is just a `<div className="shrink-0">` — callers
+  wrap their own flex layout inside (so each page can express its own
+  dim-when-no-data / loading-spinner / button-state logic without the
+  shared component growing flags).
+- When adding a new report page: copy any existing call site
+  (`ReportViewPage` is the canonical reference because it handles both URL
+  shapes), pass `project={project}` + `dept={dept}` + an `accentColor`,
+  and the identity tile, breadcrumb wiring, and title styling come for
+  free.
+
+## Number formatting — always via `fmt` (en-US, full digits)
+
+- Every displayed number goes through `src/utils/fmt.ts`. Never call
+  `.toLocaleString()` on a number, never `String(n)` for a numeric field,
+  never `n.toFixed()` directly in JSX. (`.toLocaleString()` *is* fine on
+  `Date` objects — that's date formatting, not number formatting.)
+- Locale is locked to `en-US` so output is always thousand-separated
+  with ASCII digits regardless of browser locale. An Arabic-locale browser
+  must not render Arabic-Indic digits.
+- API:
+  - `fmt.int(n)`           → `1,234` (integers, never abbreviated)
+  - `fmt.dec(n, places=1)` → `95.2`  (default 1 decimal place)
+  - `fmt.pct(ratio, p=1)`  → `95.2%` (input is 0..1)
+  - `fmt.pctFromPercent(95.2)` → `95.2%` (input is already a percent value)
+  - `fmt.compact(n)`       → `12.3K` (CHART AXES ONLY)
+  - `fmt.auto(v)`          → integer/decimal autodetect for generic cells
+- `null`, `undefined`, `NaN`, non-finite → `"—"`. Callers do not have to
+  special-case empty.
+- **Full digits everywhere except chart Y-axes.** Tiles, tooltips, table
+  cells, table totals, KPI eyebrows, sub-labels — all show `10,000`. Only
+  Recharts `<YAxis tickFormatter={fmt.compact} />` is allowed to render
+  `10K` / `1.2M` for readability of tight axis labels. Never abbreviate
+  anywhere else (no "10K calls" in a KPI tile).
+- The generic report-table cell renderer (`formatCellValue` in
+  `ReportViewPage.tsx`) automatically routes `typeof val === "number"`
+  through `fmt`. This means every SQL-report numeric column gets commas
+  for free — do not add per-column number-formatting workarounds.
+- UI item counts (file counts, dirty-field counts, "5 of 12 records") can
+  stay as raw `{n}` interpolation. They're typically `< 100`; commas would
+  be visual noise. But anything that originates from analytics / report
+  data MUST go through `fmt`.
+
 ## What NOT to do
 
 - Do not add toast notifications without asking.
@@ -170,6 +231,28 @@ requirement unless the user explicitly overrides it for a specific task.
   for sticky footer patterns — see `AdminLayout`.
 - Do not use placeholders as a substitute for labels or helper text. Every
   input must have a label; format hints go in helper text below the input.
+
+## Global layout rules (mandatory)
+
+These apply to every layout component and the app's router. Don't ship a
+new page or layout that violates them.
+
+- **Sticky footer scaffold.** Every layout wraps its children in
+  `min-h-screen flex flex-col`, gives `<main>` `flex-1`, and renders the
+  `<Footer>` after `<main>`. The Footer pins to the viewport bottom when
+  page content is short and flows naturally after content when it isn't.
+  Canonical reference: `DashboardLayout.tsx`. Don't reach for
+  `position: fixed`, `pb-screen`, or `min-h-[80vh]` hacks — the flex
+  scaffold is the only correct fix because it adapts to any viewport.
+- **POP scroll restoration.** The `<ScrollRestoration />` component
+  mounted in `App.tsx` (inside `<BrowserRouter>`, before `<Routes>`)
+  handles every page: browser Back/Forward returns to the saved scroll
+  position for that history entry; new navigations scroll to top.
+  Positions are keyed by `location.key` in `sessionStorage`, and
+  `window.history.scrollRestoration = "manual"` is set on mount so the
+  browser's native behavior doesn't fight ours. Don't reintroduce a
+  per-path `ScrollToTop` — restoration is keyed by history entry, not
+  path.
 
 ## Conventions — file layout
 

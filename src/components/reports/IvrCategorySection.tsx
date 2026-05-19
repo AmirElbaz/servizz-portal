@@ -130,12 +130,16 @@ export function IvrCategorySection({
             </div>
           );
 
-          // Trend-comparison gets a clickable link to the live preview.
-          // The other placeholders render as inert <div>s.
+          // Previewable placeholders navigate through `linkBuilder` so they
+          // pick up the page's dept/project context (e.g. `/department/OPS/
+          // project/dss/report/ivr-funnel` instead of the context-blind
+          // `/preview/ivr-funnel`). `previewHref` on the data row is now a
+          // boolean signal — "this report has a preview page wired" — and
+          // the actual URL comes from the caller's link builder.
           return p.previewHref ? (
             <Link
               key={p.code}
-              to={p.previewHref}
+              to={linkBuilder(p.code)}
               className="block no-underline card-lift"
             >
               {card}

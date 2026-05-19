@@ -16,6 +16,7 @@ import {
   departmentIconUrl,
   type AdminDepartment,
 } from "../../services/admin";
+import { fmt } from "../../utils/fmt";
 
 type EditState =
   | { mode: "create" }
@@ -543,7 +544,7 @@ export default function AdminDepartmentsPage() {
                 {pendingFile && (
                   <p className="text-[11px] text-on-surface-variant/70 mt-2 truncate">
                     Ready to upload: <span className="font-semibold">{pendingFile.name}</span>{" "}
-                    ({Math.round(pendingFile.size / 1024)} KB)
+                    ({fmt.int(Math.round(pendingFile.size / 1024))} KB)
                   </p>
                 )}
                 {errors.icon && (

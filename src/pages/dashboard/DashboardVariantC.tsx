@@ -87,7 +87,7 @@ export default function DashboardVariantC({ projects }: Props) {
                 Welcome back, {firstName}
               </p>
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black font-headline tracking-tight text-on-surface leading-[0.95]">
-                Your{" "}
+                {" "}
                 <span
                   className="bg-clip-text text-transparent"
                   style={{
@@ -98,9 +98,12 @@ export default function DashboardVariantC({ projects }: Props) {
                   Departments
                 </span>
               </h1>
-              <p className="text-sm text-on-surface-variant/70 mt-3 max-w-xl leading-relaxed">
-                Pick a department to open its reports, teams, and the services
-                attached to it.
+              <p className="text-sm md:text-base text-on-surface-variant/75 mt-4 max-w-3xl leading-relaxed font-medium">
+                Every department in the portal brings together its own reports,
+                operational dashboards, teams, and connected services in one
+                place — giving you a tailored view of the metrics, people, and
+                workflows that drive that part of the business. Pick a
+                department to dive into its full picture.
               </p>
             </div>
 

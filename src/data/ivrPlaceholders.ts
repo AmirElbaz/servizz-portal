@@ -42,44 +42,46 @@ export const IVR_PLACEHOLDERS: IvrPlaceholder[] = [
     metricsCovered: "Offered, Auto-handled (metrics 10–11)",
     previewHref: "/preview/ivr-trend-comparison",
   },
-  {
-    code: "ivr-funnel",
-    name: "IVR Funnel",
-    description:
-      "Drop-off through the IVR — abandons during the menu, abandons in queue " +
-      "post-IVR, and the rate of callers opting through to a CRO.",
-    icon: "alt_route",
-    metricsCovered: "Metrics 1, 2, 6",
-    previewHref: "/preview/ivr-funnel",
-  },
-  {
-    code: "repeat-contacts",
-    name: "Repeat Contacts",
-    description:
-      "Caller behavior in a 72-hour window — same-number repeats per project, " +
-      "unique-contact distribution by call frequency.",
-    icon: "history",
-    metricsCovered: "Metrics 3, 4, 5",
-  },
-  {
-    code: "hourly-distribution",
-    name: "Hourly Distribution",
-    description:
-      "Calls per hour across all projects and per project, with a peak vs " +
-      "off-peak split for capacity-planning conversations.",
-    icon: "schedule",
-    metricsCovered: "Metrics 7, 8",
-    previewHref: "/preview/hourly-distribution",
-  },
-  {
-    code: "sla-forecast",
-    name: "SLA Forecast",
-    description:
-      "Forecasted call volumes per project, projected against agreed SLA " +
-      "answered-vs-offered targets.",
-    icon: "insights",
-    metricsCovered: "Metric 9",
-  },
+  // ── HIDDEN until the live backend ships — Amir 2026-05-13. Do NOT
+  //    delete; uncomment when each report is ready.
+  // {
+  //   code: "ivr-funnel",
+  //   name: "IVR Funnel",
+  //   description:
+  //     "Drop-off through the IVR — abandons during the menu, abandons in queue " +
+  //     "post-IVR, and the rate of callers opting through to a CRO.",
+  //   icon: "alt_route",
+  //   metricsCovered: "Metrics 1, 2, 6",
+  //   previewHref: "/preview/ivr-funnel",
+  // },
+  // {
+  //   code: "repeat-contacts",
+  //   name: "Repeat Contacts",
+  //   description:
+  //     "Caller behavior in a 72-hour window — same-number repeats per project, " +
+  //     "unique-contact distribution by call frequency.",
+  //   icon: "history",
+  //   metricsCovered: "Metrics 3, 4, 5",
+  // },
+  // {
+  //   code: "hourly-distribution",
+  //   name: "Hourly Distribution",
+  //   description:
+  //     "Calls per hour across all projects and per project, with a peak vs " +
+  //     "off-peak split for capacity-planning conversations.",
+  //   icon: "schedule",
+  //   metricsCovered: "Metrics 7, 8",
+  //   previewHref: "/preview/hourly-distribution",
+  // },
+  // {
+  //   code: "sla-forecast",
+  //   name: "SLA Forecast",
+  //   description:
+  //     "Forecasted call volumes per project, projected against agreed SLA " +
+  //     "answered-vs-offered targets.",
+  //   icon: "insights",
+  //   metricsCovered: "Metric 9",
+  // },
 ];
 
 // Section header metadata used by department / project pages when rendering

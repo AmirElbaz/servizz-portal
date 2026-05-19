@@ -53,6 +53,8 @@ export default function HrRecordDetailPage() {
   // so fresh checklists don't pre-light as "broken."
   const [showValidation, setShowValidation] = useState(false);
   const [concurrency, setConcurrency] = useState(false);
+  // null = idle; "pdf" / "xlsx" while that specific export is in flight.
+  const [exporting, setExporting] = useState<"pdf" | "xlsx" | null>(null);
 
   // Values by field id — local state, flushed to the server only on Save.
   const [values, setValues] = useState<Map<number, HrValuePatch>>(new Map());
@@ -261,7 +263,7 @@ export default function HrRecordDetailPage() {
   }
 
   async function handleExport(format: "pdf" | "xlsx") {
-    if (!template || !record) return;
+    if (!template || !record || exporting) return;
     // Export reads from the database, not from local state. If we have
     // unsaved edits the export would silently show the pre-edit values —
     // a footgun. Block it here; the UI also disables the buttons in this
@@ -271,6 +273,7 @@ export default function HrRecordDetailPage() {
       return;
     }
     try {
+      setExporting(format);
       const slug = record.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
       const date = new Date().toISOString().slice(0, 10).replaceAll("-", "");
       const filename = `${template.code}-${slug}-${date}.${format}`;
@@ -278,6 +281,8 @@ export default function HrRecordDetailPage() {
       else await exportHrRecordExcel(rid, filename);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Export failed");
+    } finally {
+      setExporting(null);
     }
   }
 
@@ -373,7 +378,6 @@ export default function HrRecordDetailPage() {
               >
                 <option value="open">Open</option>
                 <option value="completed">Completed</option>
-                <option value="archived">Archived</option>
               </select>
               <SaveStatus state={saveState} dirtyCount={dirtyIds.size} />
               <span className="text-[11px] text-on-surface-variant/50">
@@ -409,7 +413,7 @@ export default function HrRecordDetailPage() {
               <button
                 type="button"
                 onClick={() => handleExport("pdf")}
-                disabled={isDirty}
+                disabled={isDirty || exporting !== null}
                 title={
                   isDirty
                     ? "Save your changes first — the export reads from the database and won't include unsaved edits."
@@ -417,13 +421,17 @@ export default function HrRecordDetailPage() {
                 }
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-surface-container-high/70 text-on-surface text-xs font-bold hover:bg-surface-container-high transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <span className="material-symbols-outlined text-[16px]">picture_as_pdf</span>
-                PDF
+                {exporting === "pdf" ? (
+                  <span className="material-symbols-outlined animate-spin text-[16px]">progress_activity</span>
+                ) : (
+                  <span className="material-symbols-outlined text-[16px]">picture_as_pdf</span>
+                )}
+                {exporting === "pdf" ? "Exporting…" : "PDF"}
               </button>
               <button
                 type="button"
                 onClick={() => handleExport("xlsx")}
-                disabled={isDirty}
+                disabled={isDirty || exporting !== null}
                 title={
                   isDirty
                     ? "Save your changes first — the export reads from the database and won't include unsaved edits."
@@ -431,8 +439,12 @@ export default function HrRecordDetailPage() {
                 }
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-surface-container-high/70 text-on-surface text-xs font-bold hover:bg-surface-container-high transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <span className="material-symbols-outlined text-[16px]">table_view</span>
-                Excel
+                {exporting === "xlsx" ? (
+                  <span className="material-symbols-outlined animate-spin text-[16px]">progress_activity</span>
+                ) : (
+                  <span className="material-symbols-outlined text-[16px]">table_view</span>
+                )}
+                {exporting === "xlsx" ? "Exporting…" : "Excel"}
               </button>
             </div>
           </div>

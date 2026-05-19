@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import {
   BarChart,
   Bar,
@@ -10,11 +10,22 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import DashboardLayout from "../components/layout/DashboardLayout";
-import BackLink from "../components/ui/BackLink";
+import ReportPageHeader, {
+  BreadcrumbChevron,
+  BreadcrumbCurrent,
+  BreadcrumbLink,
+  BreadcrumbStatic,
+} from "../components/reports/ReportPageHeader";
+import ChartCardBrandStrip, { type BrandScope } from "../components/reports/ChartCardBrandStrip";
 import {
   fetchCatalogDepartment,
+  fetchCatalogDepartmentProjects,
+  getLogoUrl,
   type CatalogDepartmentSummary,
+  type CatalogProject,
 } from "../services/catalog";
+import { fmt } from "../utils/fmt";
+import { REPORT_MIN_DATE } from "../utils/reportDateRange";
 
 const ACCENT = "#2EB2FF";
 
@@ -88,10 +99,18 @@ function buildProjectRows(): ProjectHourlyRow[] {
 }
 
 export default function HourlyDistributionPreviewPage() {
-  const { deptCode } = useParams<{ deptCode?: string }>();
+  // Three URL shapes resolve here (mirrors trend-comparison / funnel):
+  //   /preview/hourly-distribution                          → both undefined
+  //   /department/:deptCode/report/hourly-distribution      → deptCode only
+  //   /department/:deptCode/project/:projectCode/report/hourly-distribution
+  // The project logo renders in the header tile when projectCode is set.
+  const { deptCode, projectCode } = useParams<{
+    deptCode?: string;
+    projectCode?: string;
+  }>();
   const today = new Date();
 
-  const [project, setProject] = useState<string>("all");
+  const [project, setProject] = useState<string>(projectCode ?? "all");
   const [mode, setMode] = useState<FilterMode>("all");
   const dateFrom = useMemo(() => new Date(today.getFullYear(), today.getMonth() - 1, 1), [today]);
   const dateTo = today;
@@ -111,10 +130,44 @@ export default function HourlyDistributionPreviewPage() {
     return () => { cancelled = true; };
   }, [effectiveDeptCode]);
 
+  // Resolve the URL projectCode to a real CatalogProject so we can render
+  // its logo in the header tile. Skipped for the legacy /preview/* URL.
+  const [catalogProjects, setCatalogProjects] = useState<CatalogProject[] | null>(null);
+  useEffect(() => {
+    if (!projectCode) {
+      setCatalogProjects(null);
+      return;
+    }
+    let cancelled = false;
+    fetchCatalogDepartmentProjects(effectiveDeptCode)
+      .then((ps) => { if (!cancelled) setCatalogProjects(ps); })
+      .catch(() => { if (!cancelled) setCatalogProjects([]); });
+    return () => { cancelled = true; };
+  }, [effectiveDeptCode, projectCode]);
+
   const projectLabel = useMemo(() => {
     if (project === "all") return null;
     return MOCK_PROJECTS.find((p) => p.value === project)?.label ?? project.toUpperCase();
   }, [project]);
+
+  // Brand-strip data owner: specific project when picked, else dept.
+  const brandScope: BrandScope = useMemo(() => {
+    if (project !== "all") {
+      const cp = catalogProjects?.find((p) => p.code.toLowerCase() === project);
+      if (cp) {
+        return {
+          kind: "project",
+          project: { name: cp.displayName, logo: getLogoUrl(cp.logoFilename) },
+        };
+      }
+      const label = MOCK_PROJECTS.find((p) => p.value === project)?.label ?? project.toUpperCase();
+      return { kind: "project", project: { name: label } };
+    }
+    return {
+      kind: "dept",
+      dept: { name: dept?.name ?? effectiveDeptCode, icon: dept?.icon ?? null },
+    };
+  }, [project, catalogProjects, dept, effectiveDeptCode]);
 
   // Pretty date-range label like "Apr 3 – May 3, 2026".
   const dateRangeLabel = useMemo(() => {
@@ -213,46 +266,69 @@ export default function HourlyDistributionPreviewPage() {
     return { allTotal, peakTotal, offPeakTotal, busiestVal, busiestLabel };
   }, [heatmap]);
 
-  const backTo = deptCode ? `/department/${deptCode}` : "/dashboard";
-  const backLabel = deptCode ? "Back to Department" : "Back to Dashboard";
+  const backTo =
+    projectCode && deptCode ? `/department/${deptCode}/project/${projectCode}`
+    : deptCode               ? `/department/${deptCode}`
+    :                          "/dashboard";
+  const backLabel = projectCode
+    ? "Back to Project"
+    : deptCode
+    ? "Back to Department"
+    : "Back to Dashboard";
 
   return (
     <DashboardLayout wide>
       <div style={{ "--accent": ACCENT } as React.CSSProperties}>
-        <BackLink to={backTo} label={backLabel} />
-
-        {/* Header */}
-        <div className="mb-8">
-          <nav className="flex items-center gap-2 mb-4 text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant/50">
-            <Link to="/dashboard" className="hover:text-on-surface transition-colors no-underline text-on-surface-variant/50">
-              Dashboard
-            </Link>
-            <span className="material-symbols-outlined text-xs">chevron_right</span>
-            {deptCode ? (
-              <Link
-                to={`/department/${deptCode}`}
-                className="hover:text-on-surface transition-colors no-underline text-on-surface-variant/50"
-              >
-                {dept?.name ?? deptCode.toUpperCase()}
-              </Link>
-            ) : (
-              <span className="text-on-surface-variant/50">{dept?.name ?? "Operation"}</span>
-            )}
-            <span className="material-symbols-outlined text-xs">chevron_right</span>
-            <span className="text-accent">Hourly Distribution</span>
-          </nav>
-
-          <div className="flex flex-col sm:flex-row items-start justify-between gap-4 sm:gap-6">
-            <div>
-              <h1 className="text-xl sm:text-3xl lg:text-4xl font-black tracking-tighter font-headline text-on-surface">
-                Hourly Distribution
-              </h1>
-              <p className="text-on-surface-variant/60 text-sm mt-1">
-                {dept?.name ?? "Operation"}
-                {projectLabel ? ` · ${projectLabel}` : ""} · {dateRangeLabel} · Mock data (preview)
-              </p>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
+        {(() => {
+          const proj = projectCode
+            ? catalogProjects?.find((p) => p.code === projectCode)
+            : null;
+          const headerProject =
+            proj && proj.logoFilename
+              ? { name: proj.displayName, logo: getLogoUrl(proj.logoFilename) }
+              : null;
+          const projDisplay = proj?.displayName ?? projectCode?.toUpperCase();
+          return (
+        <ReportPageHeader
+          backTo={backTo}
+          backLabel={backLabel}
+          project={headerProject}
+          dept={dept}
+          accentColor={ACCENT}
+          title="Hourly Distribution"
+          subtitle={
+            <>
+              {dept?.name ?? "Operation"}
+              {projectLabel ? ` · ${projectLabel}` : ""} · {dateRangeLabel} · Mock data (preview)
+            </>
+          }
+          breadcrumb={
+            <>
+              <BreadcrumbLink to="/dashboard">Dashboard</BreadcrumbLink>
+              <BreadcrumbChevron />
+              {deptCode ? (
+                <BreadcrumbLink to={`/department/${deptCode}`}>
+                  {dept?.name ?? deptCode.toUpperCase()}
+                </BreadcrumbLink>
+              ) : (
+                <BreadcrumbStatic>{dept?.name ?? "Operation"}</BreadcrumbStatic>
+              )}
+              {projectCode && deptCode && (
+                <>
+                  <BreadcrumbChevron />
+                  <BreadcrumbLink
+                    to={`/department/${deptCode}/project/${projectCode}`}
+                  >
+                    {projDisplay}
+                  </BreadcrumbLink>
+                </>
+              )}
+              <BreadcrumbChevron />
+              <BreadcrumbCurrent>Hourly Distribution</BreadcrumbCurrent>
+            </>
+          }
+          actions={
+            <div className="flex items-center gap-2">
               <button
                 type="button"
                 disabled
@@ -274,8 +350,10 @@ export default function HourlyDistributionPreviewPage() {
                 PDF
               </button>
             </div>
-          </div>
-        </div>
+          }
+        />
+          );
+        })()}
 
         {/* Filter bar */}
         <div className="mb-8 prism-surface rounded-2xl p-5">
@@ -286,6 +364,7 @@ export default function HourlyDistributionPreviewPage() {
               </label>
               <input
                 type="date"
+                min={REPORT_MIN_DATE}
                 value={from}
                 onChange={(e) => setFrom(e.target.value)}
                 className="py-2 px-3 bg-surface-container-high/50 rounded-xl border border-on-surface-variant/8 text-on-surface text-sm focus:outline-none focus:border-accent"
@@ -298,6 +377,7 @@ export default function HourlyDistributionPreviewPage() {
               </label>
               <input
                 type="date"
+                min={REPORT_MIN_DATE}
                 value={to}
                 onChange={(e) => setTo(e.target.value)}
                 className="py-2 px-3 bg-surface-container-high/50 rounded-xl border border-on-surface-variant/8 text-on-surface text-sm focus:outline-none focus:border-accent"
@@ -346,10 +426,10 @@ export default function HourlyDistributionPreviewPage() {
         {/* KPI strip */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {[
-            { icon: "call",            label: "Total calls",        value: totals.allTotal.toLocaleString(),                            sub: "Across the selected range",                tone: ACCENT     },
-            { icon: "schedule",        label: "Peak-hour share",    value: `${Math.round((totals.peakTotal / Math.max(1, totals.allTotal)) * 100)}%`, sub: `${totals.peakTotal.toLocaleString()} calls`, tone: "#15803d"  },
-            { icon: "nights_stay",     label: "Off-peak calls",     value: totals.offPeakTotal.toLocaleString(),                        sub: "Outside Mon–Fri 08:00–18:00",              tone: "#9F7AEA"  },
-            { icon: "local_fire_department", label: "Busiest hour", value: totals.busiestLabel,                                         sub: `${totals.busiestVal.toLocaleString()} calls in that window`, tone: "#b91c1c" },
+            { icon: "call",            label: "Total calls",        value: fmt.int(totals.allTotal),                                    sub: "Across the selected range",                tone: ACCENT     },
+            { icon: "schedule",        label: "Peak-hour share",    value: `${fmt.auto(Math.round((totals.peakTotal / Math.max(1, totals.allTotal)) * 100))}%`, sub: `${fmt.int(totals.peakTotal)} calls`,         tone: "#15803d"  },
+            { icon: "nights_stay",     label: "Off-peak calls",     value: fmt.int(totals.offPeakTotal),                                sub: "Outside Mon–Fri 08:00–18:00",              tone: "#9F7AEA"  },
+            { icon: "local_fire_department", label: "Busiest hour", value: totals.busiestLabel,                                         sub: `${fmt.int(totals.busiestVal)} calls in that window`, tone: "#b91c1c" },
           ].map((k) => (
             <div key={k.label} className="prism-surface rounded-2xl p-5">
               <div className="flex items-center gap-3 mb-3">
@@ -421,7 +501,7 @@ export default function HourlyDistributionPreviewPage() {
                         key={h}
                         className="flex-1 min-w-[28px] h-8 m-[1px] rounded-[3px] transition-all hover:scale-110 hover:z-10 hover:shadow-md cursor-default"
                         style={{ backgroundColor: cellColor(v, dIdx, h) }}
-                        title={`${day} ${String(h).padStart(2, "0")}:00 · ${v.toLocaleString()} calls${peak ? " · peak" : ""}`}
+                        title={`${day} ${String(h).padStart(2, "0")}:00 · ${fmt.int(v)} calls${peak ? " · peak" : ""}`}
                       />
                     );
                   })}
@@ -429,6 +509,7 @@ export default function HourlyDistributionPreviewPage() {
               ))}
             </div>
           </div>
+          <ChartCardBrandStrip scope={brandScope} accentColor={ACCENT} />
         </div>
 
         {/* Hourly aggregate bar chart */}
@@ -443,7 +524,7 @@ export default function HourlyDistributionPreviewPage() {
             <BarChart data={hourlyAggregate} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e8eff3" />
               <XAxis dataKey="hour" tick={{ fontSize: 9, fill: "#566166" }} tickLine={false} axisLine={{ stroke: "#e8eff3" }} interval={1} />
-              <YAxis tick={{ fontSize: 10, fill: "#566166" }} tickLine={false} axisLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: "#566166" }} tickLine={false} axisLine={false} tickFormatter={fmt.compact} />
               <Tooltip
                 contentStyle={{
                   borderRadius: 12,
@@ -451,11 +532,12 @@ export default function HourlyDistributionPreviewPage() {
                   boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
                   fontSize: 12,
                 }}
-                formatter={(v) => [Number(v).toLocaleString(), "Calls"]}
+                formatter={(v) => [fmt.int(Number(v)), "Calls"]}
               />
               <Bar dataKey="calls" fill={ACCENT} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
+          <ChartCardBrandStrip scope={brandScope} accentColor={ACCENT} />
         </div>
 
         {/* Per-project breakdown */}
@@ -494,9 +576,9 @@ export default function HourlyDistributionPreviewPage() {
                 {projectRows.map((row) => (
                   <tr key={row.code} className="border-t border-on-surface-variant/4 hover:bg-surface-container-low/40 transition-colors">
                     <td className="px-4 py-2.5 text-[12px] font-bold text-on-surface">{row.label}</td>
-                    <td className="px-3 py-2.5 text-[12px] tabular-nums text-right text-on-surface font-medium">{row.total.toLocaleString()}</td>
-                    <td className="px-3 py-2.5 text-[12px] tabular-nums text-right text-emerald-700 font-medium">{row.peakShare}%</td>
-                    <td className="px-3 py-2.5 text-[12px] tabular-nums text-right text-on-surface-variant/80 font-medium">{row.offPeakShare}%</td>
+                    <td className="px-3 py-2.5 text-[12px] tabular-nums text-right text-on-surface font-medium">{fmt.int(row.total)}</td>
+                    <td className="px-3 py-2.5 text-[12px] tabular-nums text-right text-emerald-700 font-medium">{fmt.auto(row.peakShare)}%</td>
+                    <td className="px-3 py-2.5 text-[12px] tabular-nums text-right text-on-surface-variant/80 font-medium">{fmt.auto(row.offPeakShare)}%</td>
                     <td className="px-3 py-2.5 text-[12px] text-on-surface-variant/80">{row.busiestHour}</td>
                     <td className="px-3 py-2.5 text-[12px] text-on-surface-variant/80">{row.quietestHour}</td>
                   </tr>

@@ -4,6 +4,7 @@ import AdminPageHeader from "../../components/admin/AdminPageHeader";
 import ErrorBanner from "../../components/admin/ErrorBanner";
 import Skeleton from "../../components/admin/Skeleton";
 import DepartmentIcon from "../../components/DepartmentIcon";
+import { fmt } from "../../utils/fmt";
 import {
   getStructureSnapshot,
   setProjectDepartmentReports,
@@ -391,9 +392,9 @@ export default function AdminStructurePage() {
                       />
                       <span className="flex-1 truncate">{d.name}</span>
                       <span className="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/50 shrink-0">
-                        {projectCount > 0 && `${projectCount}p`}
+                        {projectCount > 0 && `${fmt.int(projectCount)}p`}
                         {projectCount > 0 && directCount > 0 && " · "}
-                        {directCount > 0 && `${directCount}r`}
+                        {directCount > 0 && `${fmt.int(directCount)}r`}
                       </span>
                     </button>
                   );

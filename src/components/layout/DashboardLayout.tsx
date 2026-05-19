@@ -26,7 +26,14 @@ export default function DashboardLayout({
   wide = false,
 }: DashboardLayoutProps) {
   return (
-    <div className="bg-surface text-on-surface min-h-screen relative overflow-x-hidden">
+    // Sticky-footer scaffold: `flex flex-col` + `min-h-screen` on the
+    // outer, `<main className="flex-1">` in the middle. When page content
+    // is short the main area expands and the Footer pins to the bottom
+    // of the viewport; when content is long the footer flows naturally
+    // after the content. Replaces the old "footer sits wherever content
+    // ends" behavior that made the footer jump around between pages
+    // (Amir 2026-05-13).
+    <div className="bg-surface text-on-surface min-h-screen flex flex-col relative overflow-x-hidden">
       {/* Prism ambient washes — same tokens as the dashboard landing */}
       <div
         aria-hidden
@@ -55,7 +62,7 @@ export default function DashboardLayout({
 
       <TopNavBar />
       <main
-        className={`relative pt-20 sm:pt-28 pb-10 sm:pb-16 px-4 sm:px-6 lg:px-12 mx-auto ${
+        className={`flex-1 relative pt-20 sm:pt-28 pb-10 sm:pb-16 px-4 sm:px-6 lg:px-12 mx-auto w-full ${
           wide ? "max-w-[1800px]" : "max-w-[90rem]"
         }`}
       >

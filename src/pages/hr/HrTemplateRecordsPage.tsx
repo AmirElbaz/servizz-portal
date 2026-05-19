@@ -42,11 +42,20 @@ export default function HrTemplateRecordsPage() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<HrRecordStatus | "">("");
   // Month filter: empty = all, else YYYY-MM (e.g., "2026-04").
-  const [createdMonth, setCreatedMonth] = useState<string>("");
+  // Default to the current month so the page opens scoped to "this month"
+  // rather than every record ever filed — admins explicitly broaden via the
+  // "All months" option when they need history.
+  const [createdMonth, setCreatedMonth] = useState<string>(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  });
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [exporting, setExporting] = useState(false);
+  // null = idle; "pdf" / "xlsx" while that specific export is in flight.
+  // Tracks per-format so we can spin only the active button and leave the
+  // other one disabled-but-not-spinning.
+  const [exporting, setExporting] = useState<"pdf" | "xlsx" | null>(null);
   const [creating, setCreating] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newValues, setNewValues] = useState<Record<number, HrValuePatch>>({});
@@ -171,9 +180,9 @@ export default function HrTemplateRecordsPage() {
   }
 
   async function handleExportAll(format: "pdf" | "xlsx") {
-    if (!template) return;
+    if (!template || exporting) return;
     try {
-      setExporting(true);
+      setExporting(format);
       const date = new Date().toISOString().slice(0, 10).replaceAll("-", "");
       const filename = `${template.code}-all-${date}.${format}`;
       const params = {
@@ -185,7 +194,7 @@ export default function HrTemplateRecordsPage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Export failed");
     } finally {
-      setExporting(false);
+      setExporting(null);
     }
   }
 
@@ -237,20 +246,28 @@ export default function HrTemplateRecordsPage() {
             <button
               type="button"
               onClick={() => handleExportAll("pdf")}
-              disabled={exporting || rows.length === 0}
+              disabled={exporting !== null || rows.length === 0}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-surface-container-high/60 text-on-surface text-xs font-bold hover:bg-surface-container-high transition-colors disabled:opacity-50"
             >
-              <span className="material-symbols-outlined text-[16px]">picture_as_pdf</span>
-              {exporting ? "Preparing…" : "All PDF"}
+              {exporting === "pdf" ? (
+                <span className="material-symbols-outlined animate-spin text-[16px]">progress_activity</span>
+              ) : (
+                <span className="material-symbols-outlined text-[16px]">picture_as_pdf</span>
+              )}
+              {exporting === "pdf" ? "Exporting…" : "All PDF"}
             </button>
             <button
               type="button"
               onClick={() => handleExportAll("xlsx")}
-              disabled={exporting || rows.length === 0}
+              disabled={exporting !== null || rows.length === 0}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-surface-container-high/60 text-on-surface text-xs font-bold hover:bg-surface-container-high transition-colors disabled:opacity-50"
             >
-              <span className="material-symbols-outlined text-[16px]">table_view</span>
-              All Excel
+              {exporting === "xlsx" ? (
+                <span className="material-symbols-outlined animate-spin text-[16px]">progress_activity</span>
+              ) : (
+                <span className="material-symbols-outlined text-[16px]">table_view</span>
+              )}
+              {exporting === "xlsx" ? "Exporting…" : "All Excel"}
             </button>
             <button
               type="button"
@@ -286,7 +303,7 @@ export default function HrTemplateRecordsPage() {
           />
         </div>
         <div className="flex items-center gap-1">
-          {(["", "open", "completed", "archived"] as const).map((s) => (
+          {(["", "open", "completed"] as const).map((s) => (
             <button
               key={s || "all"}
               type="button"
@@ -342,30 +359,30 @@ export default function HrTemplateRecordsPage() {
             </p>
           </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-surface-container-low/50 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/60">
+          <table className="tbl">
+            <thead className="bg-surface-container-low/50">
               <tr>
-                <th className="px-4 py-3 text-left">Title</th>
-                <th className="px-4 py-3 text-left">Progress</th>
-                <th className="px-4 py-3 text-left">Status</th>
-                <th className="px-4 py-3 text-left">Updated</th>
-                <th className="px-4 py-3 w-20"></th>
+                <th className="tbl-th">Name</th>
+                <th className="tbl-th">Progress</th>
+                <th className="tbl-th">Status</th>
+                <th className="tbl-th">Updated</th>
+                {isAdmin && <th className="tbl-th w-20"></th>}
               </tr>
             </thead>
-            <tbody className="divide-y divide-on-surface-variant/8">
+            <tbody>
               {rows.map((r) => {
                 const pct = r.total > 0 ? Math.round((100 * r.done) / r.total) : 0;
                 return (
-                  <tr key={r.id} className="hover:bg-surface-container-low/30 transition-colors">
-                    <td className="px-4 py-3">
+                  <tr key={r.id} className="tbl-tr">
+                    <td className="tbl-td-strong">
                       <Link
                         to={`/department/${deptCode}/templates/${tid}/records/${r.id}`}
-                        className="font-semibold text-on-surface hover:text-primary no-underline"
+                        className="hover:text-primary no-underline"
                       >
                         {r.title}
                       </Link>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="tbl-td">
                       {r.total > 0 ? (
                         <div className="flex items-center gap-2 min-w-[140px]">
                           <div className="flex-1 h-1.5 bg-surface-container-high/60 rounded-full overflow-hidden">
@@ -377,7 +394,7 @@ export default function HrTemplateRecordsPage() {
                             />
                           </div>
                           <span
-                            className={`text-[11px] font-bold shrink-0 tabular-nums ${
+                            className={`text-[12px] font-bold shrink-0 tabular-nums ${
                               pct === 100 ? "text-success" : "text-on-surface-variant/70"
                             }`}
                           >
@@ -385,25 +402,27 @@ export default function HrTemplateRecordsPage() {
                           </span>
                         </div>
                       ) : (
-                        <span className="text-[11px] text-on-surface-variant/40 italic">—</span>
+                        <span className="text-[12px] text-on-surface-variant/40 italic">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="tbl-td">
                       <StatusPill status={r.status} />
                     </td>
-                    <td className="px-4 py-3 text-xs text-on-surface-variant/70">
+                    <td className="tbl-td">
                       {new Date(r.updatedAt).toLocaleDateString()}
                     </td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => setDeleteTarget(r)}
-                        aria-label="Delete record"
-                        className="text-on-surface-variant/40 hover:text-error transition-colors p-1 rounded"
-                      >
-                        <span className="material-symbols-outlined text-[18px]">delete</span>
-                      </button>
-                    </td>
+                    {isAdmin && (
+                      <td className="tbl-td text-right">
+                        <button
+                          type="button"
+                          onClick={() => setDeleteTarget(r)}
+                          aria-label="Delete record"
+                          className="text-on-surface-variant/40 hover:text-error transition-colors p-1 rounded"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">delete</span>
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 );
               })}
@@ -654,8 +673,6 @@ function StatusPill({ status }: { status: HrRecordStatus }) {
   const styles = {
     open: "bg-primary/10 text-primary",
     completed: "bg-success-container text-on-success-container",
-    archived:
-      "bg-surface-container-highest text-on-surface-variant/60 border border-on-surface-variant/15",
   }[status];
   const label = status[0].toUpperCase() + status.slice(1);
   return (

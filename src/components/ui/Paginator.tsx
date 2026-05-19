@@ -1,3 +1,5 @@
+import { fmt } from "../../utils/fmt";
+
 interface PaginatorProps {
   totalItems: number;
   currentPage: number;
@@ -59,7 +61,7 @@ export default function Paginator({
           ))}
         </select>
         <span className="text-[11px] text-on-surface-variant/40">
-          {from}–{to} of {totalItems}
+          {fmt.int(from)}–{fmt.int(to)} of {fmt.int(totalItems)}
         </span>
       </div>
 

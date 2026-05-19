@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import {
   BarChart,
   Bar,
@@ -11,11 +11,21 @@ import {
   Cell,
 } from "recharts";
 import DashboardLayout from "../components/layout/DashboardLayout";
-import BackLink from "../components/ui/BackLink";
+import ReportPageHeader, {
+  BreadcrumbChevron,
+  BreadcrumbCurrent,
+  BreadcrumbLink,
+  BreadcrumbStatic,
+} from "../components/reports/ReportPageHeader";
+import ChartCardBrandStrip, { type BrandScope } from "../components/reports/ChartCardBrandStrip";
 import {
   fetchCatalogDepartment,
+  fetchCatalogDepartmentProjects,
+  getLogoUrl,
   type CatalogDepartmentSummary,
+  type CatalogProject,
 } from "../services/catalog";
+import { fmt } from "../utils/fmt";
 
 const ACCENT = "#2EB2FF";
 // Stage colors: a clean blue ramp for the IVR-side stages (lighter as
@@ -112,10 +122,19 @@ function pctOf(numerator: number, denominator: number): string {
 }
 
 export default function IvrFunnelPreviewPage() {
-  const { deptCode } = useParams<{ deptCode?: string }>();
+  // Three URL shapes resolve to this component (mirrors trend-comparison):
+  //   /preview/ivr-funnel                                  → both undefined
+  //   /department/:deptCode/report/ivr-funnel              → deptCode only
+  //   /department/:deptCode/project/:projectCode/report/ivr-funnel
+  // When projectCode is set we render the project logo in the header tile
+  // and lock the filter dropdown to that project.
+  const { deptCode, projectCode } = useParams<{
+    deptCode?: string;
+    projectCode?: string;
+  }>();
   const today = new Date();
 
-  const [project, setProject] = useState<string>("all");
+  const [project, setProject] = useState<string>(projectCode ?? "all");
   const [anchorYear, setAnchorYear] = useState<number>(today.getFullYear());
   const [anchorMonth, setAnchorMonth] = useState<number>(today.getMonth() + 1);
 
@@ -134,10 +153,47 @@ export default function IvrFunnelPreviewPage() {
     return () => { cancelled = true; };
   }, [effectiveDeptCode]);
 
+  // Fetch the dept's projects so we can resolve the URL's projectCode into a
+  // real CatalogProject (with logoFilename) and render the project logo in
+  // the identity tile. Skipped when there's no projectCode in the URL.
+  const [catalogProjects, setCatalogProjects] = useState<CatalogProject[] | null>(null);
+  useEffect(() => {
+    if (!projectCode) {
+      setCatalogProjects(null);
+      return;
+    }
+    let cancelled = false;
+    fetchCatalogDepartmentProjects(effectiveDeptCode)
+      .then((ps) => { if (!cancelled) setCatalogProjects(ps); })
+      .catch(() => { if (!cancelled) setCatalogProjects([]); });
+    return () => { cancelled = true; };
+  }, [effectiveDeptCode, projectCode]);
+
   const projectLabel = useMemo(() => {
     if (project === "all") return null;
     return MOCK_PROJECTS.find((p) => p.value === project)?.label ?? project.toUpperCase();
   }, [project]);
+
+  // Resolves to the strip's data-owner: specific project when one is
+  // selected and we have its catalog row, else the dept. Memoized so
+  // identity is stable when re-rendering chart cards below.
+  const brandScope: BrandScope = useMemo(() => {
+    if (project !== "all") {
+      const cp = catalogProjects?.find((p) => p.code.toLowerCase() === project);
+      if (cp) {
+        return {
+          kind: "project",
+          project: { name: cp.displayName, logo: getLogoUrl(cp.logoFilename) },
+        };
+      }
+      const label = MOCK_PROJECTS.find((p) => p.value === project)?.label ?? project.toUpperCase();
+      return { kind: "project", project: { name: label } };
+    }
+    return {
+      kind: "dept",
+      dept: { name: dept?.name ?? effectiveDeptCode, icon: dept?.icon ?? null },
+    };
+  }, [project, catalogProjects, dept, effectiveDeptCode]);
 
   // Headline stage data scales with the current project pick — gives the
   // demo a felt sense that filtering does something.
@@ -194,46 +250,70 @@ export default function IvrFunnelPreviewPage() {
     [funnel, stageDeltas],
   );
 
-  const backTo = deptCode ? `/department/${deptCode}` : "/dashboard";
-  const backLabel = deptCode ? "Back to Department" : "Back to Dashboard";
+  const backTo =
+    projectCode && deptCode ? `/department/${deptCode}/project/${projectCode}`
+    : deptCode               ? `/department/${deptCode}`
+    :                          "/dashboard";
+  const backLabel = projectCode
+    ? "Back to Project"
+    : deptCode
+    ? "Back to Department"
+    : "Back to Dashboard";
 
   return (
     <DashboardLayout wide>
       <div style={{ "--accent": ACCENT } as React.CSSProperties}>
-        <BackLink to={backTo} label={backLabel} />
-
-        {/* Header */}
-        <div className="mb-8">
-          <nav className="flex items-center gap-2 mb-4 text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant/50">
-            <Link to="/dashboard" className="hover:text-on-surface transition-colors no-underline text-on-surface-variant/50">
-              Dashboard
-            </Link>
-            <span className="material-symbols-outlined text-xs">chevron_right</span>
-            {deptCode ? (
-              <Link
-                to={`/department/${deptCode}`}
-                className="hover:text-on-surface transition-colors no-underline text-on-surface-variant/50"
-              >
-                {dept?.name ?? deptCode.toUpperCase()}
-              </Link>
-            ) : (
-              <span className="text-on-surface-variant/50">{dept?.name ?? "Operation"}</span>
-            )}
-            <span className="material-symbols-outlined text-xs">chevron_right</span>
-            <span className="text-accent">IVR Funnel</span>
-          </nav>
-
-          <div className="flex flex-col sm:flex-row items-start justify-between gap-4 sm:gap-6">
-            <div>
-              <h1 className="text-xl sm:text-3xl lg:text-4xl font-black tracking-tighter font-headline text-on-surface">
-                IVR Funnel
-              </h1>
-              <p className="text-on-surface-variant/60 text-sm mt-1">
-                {dept?.name ?? "Operation"}
-                {projectLabel ? ` · ${projectLabel}` : ""} · {MONTHS[anchorMonth - 1]} {anchorYear} · Mock data (preview)
-              </p>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
+        {(() => {
+          const proj = projectCode
+            ? catalogProjects?.find((p) => p.code === projectCode)
+            : null;
+          const headerProject =
+            proj && proj.logoFilename
+              ? { name: proj.displayName, logo: getLogoUrl(proj.logoFilename) }
+              : null;
+          const projDisplay = proj?.displayName ?? projectCode?.toUpperCase();
+          return (
+        <ReportPageHeader
+          backTo={backTo}
+          backLabel={backLabel}
+          project={headerProject}
+          dept={dept}
+          accentColor={ACCENT}
+          title="IVR Funnel"
+          subtitle={
+            <>
+              {dept?.name ?? "Operation"}
+              {projectLabel ? ` · ${projectLabel}` : ""} ·{" "}
+              {MONTHS[anchorMonth - 1]} {anchorYear} · Mock data (preview)
+            </>
+          }
+          breadcrumb={
+            <>
+              <BreadcrumbLink to="/dashboard">Dashboard</BreadcrumbLink>
+              <BreadcrumbChevron />
+              {deptCode ? (
+                <BreadcrumbLink to={`/department/${deptCode}`}>
+                  {dept?.name ?? deptCode.toUpperCase()}
+                </BreadcrumbLink>
+              ) : (
+                <BreadcrumbStatic>{dept?.name ?? "Operation"}</BreadcrumbStatic>
+              )}
+              {projectCode && deptCode && (
+                <>
+                  <BreadcrumbChevron />
+                  <BreadcrumbLink
+                    to={`/department/${deptCode}/project/${projectCode}`}
+                  >
+                    {projDisplay}
+                  </BreadcrumbLink>
+                </>
+              )}
+              <BreadcrumbChevron />
+              <BreadcrumbCurrent>IVR Funnel</BreadcrumbCurrent>
+            </>
+          }
+          actions={
+            <div className="flex items-center gap-2">
               <button
                 type="button"
                 disabled
@@ -255,8 +335,10 @@ export default function IvrFunnelPreviewPage() {
                 PDF
               </button>
             </div>
-          </div>
-        </div>
+          }
+        />
+          );
+        })()}
 
         {/* Filter bar */}
         <div className="mb-8 prism-surface rounded-2xl p-5">
@@ -303,10 +385,10 @@ export default function IvrFunnelPreviewPage() {
         {/* KPI strip */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {[
-            { icon: "logout",         label: "IVR Abandons",       value: kpis.ivrAbandons.toLocaleString(),   sub: `${kpis.ivrAbandonPct} of menu listeners`,    tone: "bad"  as const },
-            { icon: "timer_off",      label: "Queue Abandons (5s+)",value: kpis.queueAbandons.toLocaleString(), sub: `${kpis.queueAbandonPct} of queued calls`,   tone: "bad"  as const },
-            { icon: "support_agent",  label: "Chose to Speak",     value: kpis.choseCro.toLocaleString(),       sub: `${kpis.choseCroPct} of post-IVR callers`,   tone: "good" as const },
-            { icon: "check_circle",   label: "Connected to CRO",   value: kpis.connected.toLocaleString(),      sub: `${kpis.connectedPct} of total calls`,       tone: "good" as const },
+            { icon: "logout",         label: "IVR Abandons",       value: fmt.int(kpis.ivrAbandons),           sub: `${kpis.ivrAbandonPct} of menu listeners`,    tone: "bad"  as const },
+            { icon: "timer_off",      label: "Queue Abandons (5s+)",value: fmt.int(kpis.queueAbandons),         sub: `${kpis.queueAbandonPct} of queued calls`,   tone: "bad"  as const },
+            { icon: "support_agent",  label: "Chose to Speak",     value: fmt.int(kpis.choseCro),               sub: `${kpis.choseCroPct} of post-IVR callers`,   tone: "good" as const },
+            { icon: "check_circle",   label: "Connected to CRO",   value: fmt.int(kpis.connected),              sub: `${kpis.connectedPct} of total calls`,       tone: "good" as const },
           ].map((k) => {
             const toneColor =
               k.tone === "good" ? "#15803d" :
@@ -353,14 +435,14 @@ export default function IvrFunnelPreviewPage() {
                     boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
                     fontSize: 12,
                   }}
-                  formatter={(v) => [Number(v).toLocaleString(), "Calls"]}
+                  formatter={(v) => [fmt.int(Number(v)), "Calls"]}
                 />
                 <Bar dataKey="count" radius={[0, 8, 8, 0]} barSize={28} label={{
                   position: "right",
                   fontSize: 11,
                   fill: "#1a1a1a",
                   fontWeight: 700,
-                  formatter: (val) => typeof val === "number" ? val.toLocaleString() : String(val ?? ""),
+                  formatter: (val) => typeof val === "number" ? fmt.int(val) : String(val ?? ""),
                 }}>
                   {chartData.map((d, i) => (
                     <Cell key={i} fill={d.color} />
@@ -368,6 +450,7 @@ export default function IvrFunnelPreviewPage() {
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
+            <ChartCardBrandStrip scope={brandScope} accentColor={ACCENT} />
           </div>
 
           <div className="lg:col-span-2 prism-surface rounded-2xl p-6">
@@ -392,7 +475,7 @@ export default function IvrFunnelPreviewPage() {
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <p className="text-[12px] font-bold text-on-surface">{s.label}</p>
                         <p className="text-[12px] font-bold text-on-surface tabular-nums">
-                          {s.count.toLocaleString()}
+                          {fmt.int(s.count)}
                         </p>
                       </div>
                       <div className="flex items-center justify-between gap-2 mt-0.5">
@@ -400,7 +483,7 @@ export default function IvrFunnelPreviewPage() {
                         {delta !== null && delta > 0 && (
                           <span className="flex items-center gap-1 text-[10px] font-bold text-rose-600">
                             <span className="material-symbols-outlined text-[12px]">trending_down</span>
-                            −{delta}%
+                            −{fmt.auto(delta)}%
                           </span>
                         )}
                       </div>
@@ -433,26 +516,26 @@ export default function IvrFunnelPreviewPage() {
             </div>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-left">
+            <table className="tbl">
               <thead>
                 <tr className="bg-surface-container-high/30">
-                  <th className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Project</th>
-                  <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 text-right">Total calls</th>
-                  <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 text-right">IVR abandons %</th>
-                  <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 text-right">Queue abandons %</th>
-                  <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 text-right">Chose CRO %</th>
-                  <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 text-right">Connected %</th>
+                  <th className="tbl-th">Project</th>
+                  <th className="tbl-th text-right">Total calls</th>
+                  <th className="tbl-th text-right">IVR abandons %</th>
+                  <th className="tbl-th text-right">Queue abandons %</th>
+                  <th className="tbl-th text-right">Chose CRO %</th>
+                  <th className="tbl-th text-right">Connected %</th>
                 </tr>
               </thead>
               <tbody>
                 {projectRows.map((row) => (
-                  <tr key={row.code} className="border-t border-on-surface-variant/4 hover:bg-surface-container-low/40 transition-colors">
-                    <td className="px-4 py-2.5 text-[12px] font-bold text-on-surface">{row.label}</td>
-                    <td className="px-3 py-2.5 text-[12px] tabular-nums text-right text-on-surface font-medium">{row.total.toLocaleString()}</td>
-                    <td className="px-3 py-2.5 text-[12px] tabular-nums text-right text-rose-700 font-medium">{row.ivrAbandonPct}%</td>
-                    <td className="px-3 py-2.5 text-[12px] tabular-nums text-right text-rose-700 font-medium">{row.queueAbandonPct}%</td>
-                    <td className="px-3 py-2.5 text-[12px] tabular-nums text-right text-on-surface font-medium">{row.croChosePct}%</td>
-                    <td className="px-3 py-2.5 text-[12px] tabular-nums text-right text-emerald-700 font-medium">{row.connectedPct}%</td>
+                  <tr key={row.code} className="tbl-tr">
+                    <td className="tbl-td-strong">{row.label}</td>
+                    <td className="tbl-td-num">{fmt.int(row.total)}</td>
+                    <td className="tbl-td-num" style={{ color: "#b91c1c" }}>{fmt.auto(row.ivrAbandonPct)}%</td>
+                    <td className="tbl-td-num" style={{ color: "#b91c1c" }}>{fmt.auto(row.queueAbandonPct)}%</td>
+                    <td className="tbl-td-num">{fmt.auto(row.croChosePct)}%</td>
+                    <td className="tbl-td-num" style={{ color: "#047857" }}>{fmt.auto(row.connectedPct)}%</td>
                   </tr>
                 ))}
               </tbody>

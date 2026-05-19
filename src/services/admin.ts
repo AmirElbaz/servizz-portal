@@ -118,6 +118,8 @@ export interface AdminUserPolicy {
   code: string;
   name: string;
 }
+export type SignupStatus = "invited" | "email_pending" | "active";
+
 export interface AdminUser {
   id: number;
   username: string;
@@ -126,18 +128,73 @@ export interface AdminUser {
   role: string | null;
   isAdmin: boolean;
   lastSeen: string | null;
+  signupStatus: SignupStatus;
   policies: AdminUserPolicy[];
 }
 
 export const listUsers = () => request<AdminUser[]>("/Admin/users");
 
-// Admin invitation: creates a new locally-managed user with a temp password
-// and sends them an invitation email. Returns the new user's id.
-export const inviteUser = (email: string) =>
-  request<{ id: number; email: string }>("/Admin/users", {
+// ── Admin invitations ────────────────────────────────────────────────────
+//
+// Single and batch flows. Both return the freshly generated temp passwords
+// IN THE RESPONSE — they are never stored anywhere as plaintext, so the
+// admin must capture them before the modal closes. The frontend exposes
+// them in a copy-to-clipboard panel (single) or a downloadable .txt
+// (batch).
+
+export interface InviteUserResponse {
+  id: number;
+  username: string;
+  tempPassword: string;
+}
+
+export interface BatchInviteRow {
+  username: string;
+  success: boolean;
+  id: number | null;
+  tempPassword: string | null;
+  error: string | null;
+}
+
+export interface BatchInviteResponse {
+  total: number;
+  successCount: number;
+  failureCount: number;
+  rows: BatchInviteRow[];
+}
+
+// One row supplied by the admin to either invite endpoint. firstName +
+// lastName are mandatory — backend rejects empty strings.
+export interface InviteUserInput {
+  username: string;
+  firstName: string;
+  lastName: string;
+}
+
+export const inviteUser = (input: InviteUserInput) =>
+  request<InviteUserResponse>("/Admin/users", {
     method: "POST",
-    body: JSON.stringify({ email }),
+    body: JSON.stringify(input),
   });
+
+export const inviteUsersBatch = (users: InviteUserInput[]) =>
+  request<BatchInviteResponse>("/Admin/users/batch", {
+    method: "POST",
+    body: JSON.stringify({ users }),
+  });
+
+// Re-mints a temp password for a user who is still in 'invited' or
+// 'email_pending'. Returns the new plaintext password — admin captures
+// it the same way as the initial invite.
+export const resetUserTempPassword = (id: number) =>
+  request<{ id: number; tempPassword: string }>(
+    `/Admin/users/${id}/reset-temp-password`,
+    { method: "POST" }
+  );
+
+// Cancel an invite. Backend rejects this if the user is already active.
+export const cancelUserInvite = (id: number) =>
+  request<void>(`/Admin/users/${id}`, { method: "DELETE" });
 
 export const setUserAdmin = (id: number, isAdmin: boolean) =>
   request<void>(`/Admin/users/${id}`, {

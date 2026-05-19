@@ -96,7 +96,11 @@ export function fetchIvrTrendComparison(
 // attached the same way as the JSON fetcher so non-admin users get a
 // proper 403 if their policy grants are missing.
 export async function downloadIvrTrendExport(
-  params: FetchIvrTrendsParams & { format: "excel" | "pdf"; projectName?: string },
+  params: FetchIvrTrendsParams & {
+    format: "excel" | "pdf";
+    projectName?: string;
+    projectLogo?: string;
+  },
 ): Promise<void> {
   const qs = new URLSearchParams();
   if (params.project) qs.set("project", params.project);
@@ -107,6 +111,7 @@ export async function downloadIvrTrendExport(
   }
   if (params.granularity) qs.set("granularity", params.granularity);
   if (params.projectName) qs.set("projectName", params.projectName);
+  if (params.projectLogo) qs.set("projectLogo", params.projectLogo);
   qs.set("format", params.format);
 
   const token = localStorage.getItem("token");

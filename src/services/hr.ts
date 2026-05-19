@@ -77,7 +77,7 @@ async function requestWithEtag<T>(
 // ── Types ────────────────────────────────────────────────────────────────
 
 export type HrFieldType = "text" | "number" | "date" | "checkbox" | "select";
-export type HrRecordStatus = "open" | "completed" | "archived";
+export type HrRecordStatus = "open" | "completed";
 export type HrFieldPlacement = "creation" | "detail";
 
 export interface HrTemplate {

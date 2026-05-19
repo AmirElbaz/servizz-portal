@@ -15,6 +15,7 @@ import {
   type CatalogReportSummary,
 } from "../services/catalog";
 import { departmentColorHex } from "../utils/departmentColor";
+import { fmt } from "../utils/fmt";
 import { pushRecentItem } from "../hooks/useRecentItems";
 import { useAuth } from "../services/auth";
 import {
@@ -22,7 +23,9 @@ import {
   createHrTemplate,
   type HrTemplate,
 } from "../services/hr";
-import { IvrCategorySection } from "../components/reports/IvrCategorySection";
+// import { IvrCategorySection } from "../components/reports/IvrCategorySection";
+//   ^ re-add when re-enabling the dept-level IVR section below.
+import { getModule, type ModuleGroupSummary } from "../services/modules";
 
 // Landing for a single department. Top-level in the department-first catalog.
 //
@@ -48,6 +51,10 @@ export default function DepartmentDetailPage() {
   const [projects, setProjects] = useState<CatalogProject[]>([]);
   const [directReports, setDirectReports] = useState<CatalogReportSummary[]>([]);
   const [templates, setTemplates] = useState<HrTemplate[]>([]);
+  // BDF Reports module groups (when dept hosts the file_uploads-kind module).
+  // Loaded lazily after the main dept payload arrives so the dept page paints
+  // immediately — empty array until resolved.
+  const [bdfGroups, setBdfGroups] = useState<ModuleGroupSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
@@ -89,6 +96,22 @@ export default function DepartmentDetailPage() {
             .catch(() => setTemplates([]));
         } else {
           setTemplates([]);
+        }
+        // BDF Reports module is currently the only file_uploads-kind module
+        // we render groups for on the dept landing. When the dept hosts it,
+        // fetch the active groups so we can render one card per report type
+        // (Incident Reports / System Uptime / Service Continuity, etc.) —
+        // matches the IT team's mental model of "click the type, see PDFs."
+        if (d.modules.includes("bdf-reports")) {
+          // Scope groups to THIS dept — after migration 028, each dept owns
+          // its own report types under the shared module kind. Without the
+          // department query, we'd see HR's groups bleed into IT's landing
+          // (and vice versa) the first time another dept adopts BDF.
+          getModule("bdf-reports", d.code)
+            .then((res) => setBdfGroups(res.groups))
+            .catch(() => setBdfGroups([]));
+        } else {
+          setBdfGroups([]);
         }
       })
       .catch(() => setNotFound(true))
@@ -399,8 +422,8 @@ export default function DepartmentDetailPage() {
                           {t.name}
                         </h3>
                         <p className="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/50 mt-0.5">
-                          {t.fieldCount} field{t.fieldCount === 1 ? "" : "s"} ·{" "}
-                          {t.recordCount} record{t.recordCount === 1 ? "" : "s"}
+                          {fmt.int(t.fieldCount)} field{t.fieldCount === 1 ? "" : "s"} ·{" "}
+                          {fmt.int(t.recordCount)} record{t.recordCount === 1 ? "" : "s"}
                         </p>
                       </div>
                     </div>
@@ -418,26 +441,64 @@ export default function DepartmentDetailPage() {
 
         {/* ── Direct reports ── */}
         {/* Reports are split by category. The IVR & Queue Analytics group
-            renders via a dedicated component (so it can interleave the live
-            report with hardcoded placeholders for the not-yet-built
-            siblings). Everything else stays in the default "Reports" grid.
-            Operation also renders the IVR group on the dept-direct page so
-            users can land on the trend-comparison preview from there.
-            //
-            On a project-aware dept (Operation), the IVR section also lives
-            on each project's detail page (see ProjectDetailPage). */}
+            is intentionally hidden here — it now only lives on the per-
+            project detail page (see ProjectDetailPage). Amir 2026-05-13:
+            "I want to access it under projects only. I don't want them
+            under the department anymore." The filtering / rendering
+            block is kept commented for fast re-enable when needed.
+            Everything else stays in the default "Reports" grid. */}
         {(() => {
-          const ivrReports = directReports.filter((r) => r.category === "ivr");
+          // const ivrReports = directReports.filter((r) => r.category === "ivr");
+          // const showIvr = dept.code.toUpperCase() === "OPS" || ivrReports.length > 0;
           const otherReports = directReports.filter((r) => r.category !== "ivr");
-          const showIvr = dept.code.toUpperCase() === "OPS" || ivrReports.length > 0;
 
           return (
             <>
-              {showIvr && (
-                <IvrCategorySection
-                  realReports={ivrReports}
-                  linkBuilder={(code) => `/department/${deptCode}/report/${code}`}
-                />
+              {/* IVR section hidden on dept page — re-enable by restoring
+                  the ivrReports/showIvr filters above and uncommenting:
+                  {showIvr && (
+                    <IvrCategorySection
+                      realReports={ivrReports}
+                      linkBuilder={(code) => `/department/${deptCode}/report/${code}`}
+                    />
+                  )} */}
+
+              {dept.modules.includes("bdf-reports") && bdfGroups.length > 0 && (
+                <section className="mb-10">
+                  <h2 className="text-xl font-bold font-headline text-on-surface tracking-tight mb-6">
+                    BDF Reports
+                  </h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {bdfGroups.map((g) => (
+                      <Link
+                        key={g.id}
+                        to={`/department/${deptCode}/module/bdf-reports?group=${encodeURIComponent(g.code)}`}
+                        className="group prism-surface relative rounded-2xl p-6 no-underline card-lift overflow-hidden hover:border-accent-50"
+                      >
+                        <div
+                          className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+                          style={{ boxShadow: `0 0 40px ${color}15` }}
+                        />
+                        <div className="relative">
+                          <div className="w-12 h-12 bg-surface-container-high rounded-xl flex items-center justify-center mb-3 text-on-surface-variant group-hover:bg-accent group-hover:text-white transition-all duration-300">
+                            <span className="material-symbols-outlined text-[22px]">{g.icon || "description"}</span>
+                          </div>
+                          <div className="flex items-center justify-between mb-1">
+                            <h5 className="font-bold text-on-surface text-sm">{g.name}</h5>
+                            <span className="text-[11px] font-semibold tabular-nums px-1.5 py-0.5 rounded-md bg-surface-container-high text-on-surface-variant">
+                              {g.fileCount}
+                            </span>
+                          </div>
+                          {g.description && (
+                            <p className="text-[11px] text-on-surface-variant/60 leading-relaxed">
+                              {g.description}
+                            </p>
+                          )}
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </section>
               )}
 
               {dept.modules.includes("direct_reports") && otherReports.length > 0 && (
@@ -486,7 +547,8 @@ export default function DepartmentDetailPage() {
           // button), so when templates is enabled we never show the global
           // empty card.
           const templatesEnabled = dept.modules.includes("templates") && dept.code.toUpperCase() === "HR";
-          if (projectsVisible || directReportsVisible || templatesEnabled) return null;
+          const bdfEnabled = dept.modules.includes("bdf-reports");
+          if (projectsVisible || directReportsVisible || templatesEnabled || bdfEnabled) return null;
           return (
             <div className="bg-white rounded-2xl editorial-shadow border border-on-surface-variant/5 p-10 text-center">
               <span className="material-symbols-outlined text-[40px] text-on-surface-variant/30 mb-2">

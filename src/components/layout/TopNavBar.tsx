@@ -26,9 +26,11 @@ export default function TopNavBar(_props: TopNavBarProps = {}) {
         >
           <img src="/centrecom-logo.svg" alt="Centrecom" className="h-9 sm:h-10 w-auto" />
           <span className="hidden sm:inline-block w-px h-6 bg-on-surface-variant/20" aria-hidden />
-          <span className="hidden sm:inline text-base font-extrabold tracking-tight text-on-surface font-headline">
-            Servizz.gov
-          </span>
+          <img
+            src="/servizz-logo.png"
+            alt="Servizz.gov"
+            className="hidden sm:inline-block h-7 sm:h-8 w-auto rounded-md"
+          />
         </Link>
 
         <div className="flex items-center gap-3">
