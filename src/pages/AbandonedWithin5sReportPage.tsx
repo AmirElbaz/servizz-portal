@@ -17,10 +17,10 @@ import {
   fetchCatalogProject,
   fetchCatalogDepartment,
   fetchCatalogReport,
-  getLogoUrl,
   type CatalogDepartmentSummary,
   type CatalogReport,
 } from "../services/catalog";
+import { adaptProject } from "../utils/adaptProject";
 import { pushRecentItem } from "../hooks/useRecentItems";
 import ErrorBanner from "../components/admin/ErrorBanner";
 import ReportPageHeader, {
@@ -29,6 +29,7 @@ import ReportPageHeader, {
   BreadcrumbLink,
 } from "../components/reports/ReportPageHeader";
 import ChartCardBrandStrip from "../components/reports/ChartCardBrandStrip";
+import { getLogoPlate } from "../utils/logoPlate";
 import {
   fetchAbandoned5sGrouped,
   fetchAbandoned5sChart,
@@ -114,17 +115,12 @@ export default function AbandonedWithin5sReportPage() {
       fetchCatalogReport(reportCode),
     ])
       .then(([p, d, r]) => {
-        setProject({
-          id: p.code,
-          code: p.shortLabel,
-          name: p.displayName,
-          description: p.description ?? "",
-          fullDescription: p.fullDescription ?? "",
-          icon: p.icon ?? "",
-          logo: getLogoUrl(p.logoFilename),
-          color: p.colorHex,
-          hoverBorderColor: "",
-        });
+        // adaptProject preserves logoPlateMode so the page header, chart-strip
+        // footers, and PDF/Excel exports all honor the per-project DB override.
+        // (Inlining this mapping drops the field — exactly the drift Amir hit
+        // 2026-05-20 when Locus's logoPlateMode='light' worked on the project
+        // hero but every chart strip + export still rendered dark.)
+        setProject(adaptProject(p));
         setDept(d);
         setReport(r);
         pushRecentItem({
@@ -202,9 +198,13 @@ export default function AbandonedWithin5sReportPage() {
       if (blobs.length === 0) {
         console.warn("[pdf-export] no chart image captured — PDF will have no chart");
       }
+      // Same tile the on-screen logo uses (cached by URL) so the PDF chip
+      // matches the page exactly.
+      const plate = await getLogoPlate(project?.logo, project?.logoPlateMode);
       await downloadAbandoned5sExport(
         dateFrom, dateTo, viewMode, projectId, groupBySkillset, "pdf",
         accent.displayName, accent.logoFilename, !entireDay, blobs,
+        plate.bg,
       );
     } finally {
       setExporting(null);
@@ -571,7 +571,7 @@ export default function AbandonedWithin5sReportPage() {
             )}
             {project && (
               <ChartCardBrandStrip
-                scope={{ kind: "project", project: { name: project.name, logo: project.logo } }}
+                scope={{ kind: "project", project: { name: project.name, logo: project.logo, logoPlateMode: project.logoPlateMode } }}
                 accentColor={accent.color}
               />
             )}

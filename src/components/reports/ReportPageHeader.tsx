@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import BackLink from "../ui/BackLink";
 import DepartmentIcon from "../DepartmentIcon";
 import { onProjectLogoError } from "../../services/catalog";
+import { useLogoPlate } from "../../utils/logoPlate";
 
 // Shared header for every report-style page (ReportViewPage, IVR previews,
 // Hourly distribution, future report pages). Renders the BackLink, the
@@ -48,7 +49,16 @@ import { onProjectLogoError } from "../../services/catalog";
 //     actions={<>{exportButtons}</>}
 //   />
 
-type IdentityProject = { name: string; logo: string } | null | undefined;
+type IdentityProject =
+  | {
+      name: string;
+      logo: string;
+      // Per-project DB override (avaya_projects.logo_plate_mode). Optional —
+      // callers that don't pass it get the brightness auto-analysis.
+      logoPlateMode?: "dark" | "light" | null;
+    }
+  | null
+  | undefined;
 type IdentityDept = { icon: string | null; name: string } | null | undefined;
 
 interface ReportPageHeaderProps {
@@ -92,6 +102,12 @@ export default function ReportPageHeader({
 }: ReportPageHeaderProps) {
   const hasIdentityTile = Boolean(project || dept);
   const identityName = project?.name ?? dept?.name ?? "";
+  // Project tiles sit on a tile chosen from the logo's own brightness (dark
+  // slate for light/white logos, white for dark ones) — never the accent,
+  // so it can't blend into the mark. Dept tiles keep white: DepartmentIcon
+  // is already accent-colored and reads fine there.
+  const projectPlate = useLogoPlate(project?.logo, project?.logoPlateMode);
+  const tileBg = project ? projectPlate.bg : "#ffffff";
 
   const tileInner = project ? (
     <img
@@ -123,8 +139,8 @@ export default function ReportPageHeader({
                 bigger desktop tile renders on the right. */}
             {hasIdentityTile && (
               <div
-                className="sm:hidden w-14 h-14 shrink-0 rounded-2xl bg-white flex items-center justify-center p-2 border border-on-surface-variant/8"
-                style={{ boxShadow: `0 4px 20px ${accentColor}25` }}
+                className="sm:hidden w-14 h-14 shrink-0 rounded-2xl flex items-center justify-center p-2 border border-on-surface-variant/8"
+                style={{ backgroundColor: tileBg, boxShadow: `0 4px 20px ${accentColor}25` }}
               >
                 {tileInner}
               </div>
@@ -148,8 +164,8 @@ export default function ReportPageHeader({
             {hasIdentityTile && (
               <div className="flex items-center gap-3 shrink-0">
                 <div
-                  className="w-20 h-20 lg:w-24 lg:h-24 shrink-0 rounded-2xl bg-white flex items-center justify-center p-3 border border-on-surface-variant/10 ring-1 ring-white/60"
-                  style={{ boxShadow: `0 8px 28px ${accentColor}33` }}
+                  className="w-20 h-20 lg:w-24 lg:h-24 shrink-0 rounded-2xl flex items-center justify-center p-3 border border-on-surface-variant/10 ring-1 ring-white/60"
+                  style={{ backgroundColor: tileBg, boxShadow: `0 8px 28px ${accentColor}33` }}
                 >
                   {tileInner}
                 </div>

@@ -4,12 +4,12 @@ import DashboardLayout from "../components/layout/DashboardLayout";
 import BackLink from "../components/ui/BackLink";
 import DepartmentIcon from "../components/DepartmentIcon";
 import Skeleton from "../components/admin/Skeleton";
+import ProjectLogoPlate from "../components/ProjectLogoPlate";
 import {
   fetchCatalogDepartment,
   fetchCatalogDepartmentProjects,
   fetchCatalogDepartmentDirectReports,
   getLogoUrl,
-  onProjectLogoError,
   type CatalogDepartmentSummary,
   type CatalogProject,
   type CatalogReportSummary,
@@ -42,6 +42,32 @@ import { getModule, type ModuleGroupSummary } from "../services/modules";
 // is enabled but has no content attached yet (e.g., HR with templates
 // enabled before any template exists), each section handles its own empty
 // state.
+
+// Placeholder report cards for Quality Assurance. These are STUBS — the
+// reports have no data pipeline / page yet. They render as non-clickable
+// "Coming soon" cards so the planned QA reporting surface is visible. To
+// retire one, delete its entry; replace with a real `department_reports`
+// attachment once the report is built. Remove the whole block + the
+// section that consumes it when QA has real reports.
+const QA_STUB_REPORTS: { name: string; icon: string }[] = [
+  { name: "Monthly Shopper Action Report", icon: "storefront" },
+  { name: "Training & Development Report", icon: "school" },
+  { name: "Knowledge Transfer Implementation Report", icon: "psychology" },
+  { name: "QC Reports", icon: "rule" },
+];
+
+// True for the Quality Assurance department regardless of whether the
+// Finance→QA rename (migration 014) ran in this environment. Matches the
+// QA/legacy-FINANCE code OR the "Quality Assurance" display name.
+function isQaDepartment(dept: { code: string; name: string }): boolean {
+  const code = (dept.code ?? "").toUpperCase();
+  return (
+    code === "QA" ||
+    code === "FINANCE" ||
+    (dept.name ?? "").trim().toLowerCase() === "quality assurance"
+  );
+}
+
 export default function DepartmentDetailPage() {
   const { deptCode } = useParams<{ deptCode: string }>();
   const navigate = useNavigate();
@@ -290,24 +316,17 @@ export default function DepartmentDetailPage() {
                   />
                   <div className="relative">
                     <div className="flex items-center gap-3 mb-3">
-                      <div
-                        className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
-                        style={{
-                          background: `linear-gradient(135deg, ${p.colorHex}15, ${p.colorHex}05)`,
-                          border: `1px solid ${p.colorHex}20`,
-                        }}
-                      >
-                        {/* getLogoUrl returns the generic fallback SVG when
-                            logoFilename is null. onProjectLogoError catches
-                            runtime 404s (filename set in DB but missing on
-                            disk) and swaps to the same fallback. */}
-                        <img
-                          src={getLogoUrl(p.logoFilename)}
-                          onError={onProjectLogoError}
-                          alt={p.displayName}
-                          className="w-8 h-8 object-contain"
-                        />
-                      </div>
+                      {/* Logo always sits on the project's own DB color via
+                          the shared plate — never bare on the white card.
+                          getLogoUrl → generic fallback when logoFilename is
+                          null; ProjectLogoPlate handles runtime 404s too. */}
+                      <ProjectLogoPlate
+                        src={getLogoUrl(p.logoFilename)}
+                        alt={p.displayName}
+                        className="w-12 h-12 rounded-xl p-1.5"
+                        imgClassName="w-full h-full"
+                        override={p.logoPlateMode}
+                      />
                       <div className="min-w-0">
                         <p className="eyebrow-sm mb-0.5" style={{ color: p.colorHex }}>
                           {p.shortLabel}
@@ -466,7 +485,7 @@ export default function DepartmentDetailPage() {
               {dept.modules.includes("bdf-reports") && bdfGroups.length > 0 && (
                 <section className="mb-10">
                   <h2 className="text-xl font-bold font-headline text-on-surface tracking-tight mb-6">
-                    BDF Reports
+                    {dept.code.toUpperCase() === "IT" ? "IT reports" : "BDF Reports"}
                   </h2>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {bdfGroups.map((g) => (
@@ -496,6 +515,44 @@ export default function DepartmentDetailPage() {
                           )}
                         </div>
                       </Link>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* QA placeholder reports — stubs, not wired to data yet. */}
+              {isQaDepartment(dept) && (
+                <section className="mb-10">
+                  <h2 className="text-xl font-bold font-headline text-on-surface tracking-tight mb-6">
+                    Reports
+                  </h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {QA_STUB_REPORTS.map((r) => (
+                      <div
+                        key={r.name}
+                        aria-disabled="true"
+                        title="Coming soon"
+                        className="prism-surface relative rounded-2xl p-6 overflow-hidden cursor-default select-none"
+                      >
+                        <div className="relative">
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="w-12 h-12 bg-surface-container-high rounded-xl flex items-center justify-center text-on-surface-variant/70">
+                              <span className="material-symbols-outlined text-[22px]">
+                                {r.icon}
+                              </span>
+                            </div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md bg-surface-container-high text-on-surface-variant/60">
+                              Coming soon
+                            </span>
+                          </div>
+                          <h5 className="font-bold text-on-surface/80 text-sm mb-1">
+                            {r.name}
+                          </h5>
+                          <p className="text-[11px] text-on-surface-variant/50 leading-relaxed">
+                            Planned for Quality Assurance — not available yet.
+                          </p>
+                        </div>
+                      </div>
                     ))}
                   </div>
                 </section>
@@ -548,7 +605,9 @@ export default function DepartmentDetailPage() {
           // empty card.
           const templatesEnabled = dept.modules.includes("templates") && dept.code.toUpperCase() === "HR";
           const bdfEnabled = dept.modules.includes("bdf-reports");
-          if (projectsVisible || directReportsVisible || templatesEnabled || bdfEnabled) return null;
+          // QA shows its stub report cards, so it's never "empty".
+          const qaStubsVisible = isQaDepartment(dept);
+          if (projectsVisible || directReportsVisible || templatesEnabled || bdfEnabled || qaStubsVisible) return null;
           return (
             <div className="bg-white rounded-2xl editorial-shadow border border-on-surface-variant/5 p-10 text-center">
               <span className="material-symbols-outlined text-[40px] text-on-surface-variant/30 mb-2">

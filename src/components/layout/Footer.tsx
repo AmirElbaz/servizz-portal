@@ -17,17 +17,6 @@ export default function Footer({ variant = "dashboard" }: FooterProps) {
             Centrecom
           </a>
         </span>
-        <div className="flex gap-6">
-          {["Privacy", "Terms", "Accessibility"].map((link) => (
-            <a
-              key={link}
-              className="text-[11px] tracking-wide text-white/30 hover:text-white/60 transition-colors"
-              href="#"
-            >
-              {link}
-            </a>
-          ))}
-        </div>
       </footer>
     );
   }
@@ -48,17 +37,6 @@ export default function Footer({ variant = "dashboard" }: FooterProps) {
           </a>
           . Unified Gateway.
         </span>
-      </div>
-      <div className="flex gap-5 shrink-0">
-        {["Privacy", "Terms", "Accessibility"].map((link) => (
-          <a
-            key={link}
-            className="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/40 hover:text-on-surface-variant/80 transition-colors"
-            href="#"
-          >
-            {link}
-          </a>
-        ))}
       </div>
     </footer>
   );

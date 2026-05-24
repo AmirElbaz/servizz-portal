@@ -103,6 +103,10 @@ export interface HrTemplateField {
   isRequired: boolean;
   showOnCreate: boolean;      // legacy; superseded by placement
   placement: HrFieldPlacement; // "creation" = in New-record modal, "detail" = on record form
+  // Admin-set: when true, the record-detail page surfaces an "N/A" toggle on
+  // this field and users can mark it non-applicable per record. Excluded from
+  // progress totals and rendered as "N/A" in exports.
+  allowsNa: boolean;
   options: unknown;
   sortOrder: number;
 }
@@ -147,6 +151,9 @@ export interface HrRecordValue {
   valueNumber: number | null;
   valueDate: string | null;
   valueBool: boolean | null;
+  // Per-record N/A flag. Defaults to true (applicable). Server only accepts
+  // false when the parent field has allowsNa = true.
+  isApplicable: boolean;
   updatedAt: string;
 }
 
@@ -217,6 +224,7 @@ export const addHrField = (
     isRequired: boolean;
     showOnCreate: boolean;
     placement: HrFieldPlacement;
+    allowsNa: boolean;
     options: unknown;
     sortOrder: number;
   }
@@ -236,12 +244,23 @@ export const updateHrField = (
     isRequired: boolean;
     showOnCreate: boolean;
     placement: HrFieldPlacement;
+    allowsNa: boolean;
     options: unknown;
   }
 ) =>
   request<void>(`/Hr/fields/${fieldId}`, {
     method: "PUT",
     body: JSON.stringify(body),
+  });
+
+// Dedicated endpoint that flips ONLY the allows_na flag. Backend bypasses
+// the design-lock that guards full UpdateField — admins can flip allows_na
+// even after a template has records (the flag is non-destructive and
+// flipping it doesn't reinterpret stored values).
+export const setHrFieldAllowsNa = (fieldId: number, allowsNa: boolean) =>
+  request<void>(`/Hr/fields/${fieldId}/allows-na`, {
+    method: "PATCH",
+    body: JSON.stringify({ allowsNa }),
   });
 
 export const deleteHrField = (fieldId: number) =>
@@ -339,6 +358,10 @@ export interface HrValuePatch {
   valueNumber?: number | null;
   valueDate?: string | null;
   valueBool?: boolean | null;
+  // When omitted, the server defaults to true (applicable). Send false to
+  // mark the field N/A for this record; server rejects with 400 when the
+  // parent field doesn't have allowsNa.
+  isApplicable?: boolean | null;
 }
 
 export const patchHrRecordValues = (

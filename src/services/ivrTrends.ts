@@ -100,6 +100,9 @@ export async function downloadIvrTrendExport(
     format: "excel" | "pdf";
     projectName?: string;
     projectLogo?: string;
+    // Resolved logo-plate background (utils/logoPlate.ts) — matches the
+    // on-screen tile. NOT the accent. PDF-only.
+    projectAccent?: string;
   },
 ): Promise<void> {
   const qs = new URLSearchParams();
@@ -112,6 +115,7 @@ export async function downloadIvrTrendExport(
   if (params.granularity) qs.set("granularity", params.granularity);
   if (params.projectName) qs.set("projectName", params.projectName);
   if (params.projectLogo) qs.set("projectLogo", params.projectLogo);
+  if (params.projectAccent) qs.set("projectAccent", params.projectAccent);
   qs.set("format", params.format);
 
   const token = localStorage.getItem("token");

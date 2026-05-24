@@ -32,6 +32,7 @@ import {
   type CatalogProject,
 } from "../services/catalog";
 import { fmt } from "../utils/fmt";
+import { getLogoPlate } from "../utils/logoPlate";
 import { REPORT_MIN_YEAR } from "../utils/reportDateRange";
 
 const ACCENT = "#2EB2FF";
@@ -103,7 +104,7 @@ export default function IvrTrendComparisonPreviewPage() {
       if (cp) {
         return {
           kind: "project",
-          project: { name: cp.displayName, logo: getLogoUrl(cp.logoFilename) },
+          project: { name: cp.displayName, logo: getLogoUrl(cp.logoFilename), logoPlateMode: cp.logoPlateMode },
         };
       }
       return { kind: "project", project: { name: project.toUpperCase() } };
@@ -149,6 +150,9 @@ export default function IvrTrendComparisonPreviewPage() {
       // PDF cover via Assets/projects/{filename}. Skip for "all" — the
       // shell falls back to centering Servizz.gov alone.
       const projectLogo = cp?.logoFilename ?? undefined;
+      // Same tile the on-screen brand strip uses — chosen from the logo's
+      // own brightness (cached by URL), so the PDF chip matches.
+      const plate = await getLogoPlate(getLogoUrl(cp?.logoFilename), cp?.logoPlateMode);
       await downloadIvrTrendExport({
         format,
         project: project === "all" ? null : project,
@@ -156,6 +160,7 @@ export default function IvrTrendComparisonPreviewPage() {
         granularity: "year",
         projectName: projectLabel,
         projectLogo,
+        projectAccent: plate.bg,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Export failed");
@@ -203,7 +208,7 @@ export default function IvrTrendComparisonPreviewPage() {
           const projLabel = proj?.displayName ?? projectCode?.toUpperCase();
           const headerProject =
             proj && proj.logoFilename
-              ? { name: proj.displayName, logo: getLogoUrl(proj.logoFilename) }
+              ? { name: proj.displayName, logo: getLogoUrl(proj.logoFilename), logoPlateMode: proj.logoPlateMode }
               : null;
 
           return (

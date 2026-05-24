@@ -5,12 +5,13 @@ import type { Project } from "../data/projects";
 import {
   fetchCatalogProject,
   fetchCatalogDepartmentProjectReports,
-  getLogoUrl,
   onProjectLogoError,
   type CatalogReportSummary,
 } from "../services/catalog";
+import { adaptProject } from "../utils/adaptProject";
 import { pushRecentItem } from "../hooks/useRecentItems";
 import BackLink from "../components/ui/BackLink";
+import { useLogoPlate } from "../utils/logoPlate";
 import { IvrCategorySection } from "../components/reports/IvrCategorySection";
 
 // Department-first adaptation: the URL now carries BOTH a department code and
@@ -27,6 +28,13 @@ export default function ProjectDetailPage() {
   const [reports, setReports] = useState<CatalogReportSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  // Tile is chosen from the logo's own brightness, never the accent. A
+  // per-project DB override (avaya_projects.logo_plate_mode) wins when set.
+  const logoPlate = useLogoPlate(project?.logo, project?.logoPlateMode);
+  // Which channel card is expanded inline (null = all collapsed).
+  const [openChannel, setOpenChannel] = useState<"voice" | "digital" | null>(
+    null,
+  );
 
   useEffect(() => {
     if (projectCode) localStorage.setItem("last-project", projectCode);
@@ -42,17 +50,10 @@ export default function ProjectDetailPage() {
       fetchCatalogDepartmentProjectReports(deptCode, projectCode),
     ])
       .then(([p, rpts]) => {
-        setProject({
-          id: p.code,
-          code: p.shortLabel,
-          name: p.displayName,
-          description: p.description ?? "",
-          fullDescription: p.fullDescription ?? "",
-          icon: p.icon ?? "",
-          logo: getLogoUrl(p.logoFilename),
-          color: p.colorHex,
-          hoverBorderColor: "",
-        });
+        // adaptProject preserves logoPlateMode so the DB override flows into
+        // the hero plate. Inlining the mapping drops the field (see Locus
+        // regression 2026-05-20).
+        setProject(adaptProject(p));
         setReports(rpts);
         if (deptCode) {
           pushRecentItem({
@@ -140,7 +141,14 @@ export default function ProjectDetailPage() {
               </p>
             </div>
           </div>
-          <div className="hidden sm:flex w-40 md:w-56 lg:w-64 bg-white items-center justify-center shrink-0 p-6 sm:p-8 relative">
+          {/* Logo block: filled with the project's own DB color via the
+              shared plate helper (was bg-white — white logos vanished). */}
+          <div
+            className={`hidden sm:flex w-40 md:w-56 lg:w-64 items-center justify-center shrink-0 p-6 sm:p-8 relative ${
+              logoPlate.border ? "ring-1 ring-inset ring-on-surface-variant/15" : ""
+            }`}
+            style={{ backgroundColor: logoPlate.bg }}
+          >
             <svg
               className="absolute top-0 right-5 w-9 h-14 drop-shadow-md"
               viewBox="0 0 36 56"
@@ -230,12 +238,133 @@ export default function ProjectDetailPage() {
                 </section>
               )}
 
-              <IvrCategorySection
-                realReports={ivrReports}
-                linkBuilder={(code) =>
-                  `/department/${deptCode}/project/${projectCode}/report/${code}`
-                }
-              />
+              {/* Monthly Reports — channel cards. Voice expands inline to
+                  the IVR & Queue Analytics reports; digital is parked. */}
+              <section className="mb-10">
+                <div className="flex items-center gap-3 mb-2">
+                  <span
+                    className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                    style={{ backgroundColor: `${accent}15`, color: accent }}
+                  >
+                    <span className="material-symbols-outlined text-lg">
+                      calendar_month
+                    </span>
+                  </span>
+                  <h2 className="text-xl font-bold font-headline text-on-surface tracking-tight">
+                    Monthly Reports
+                  </h2>
+                </div>
+                <p className="text-[12px] text-on-surface-variant/60 leading-relaxed mb-5 max-w-2xl pl-12">
+                  Monthly reporting by channel. Voice opens the Inbound &amp; Queue
+                  Analytics reports; digital channels are coming soon.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {/* Voice — live. Expands inline to the IVR reports. */}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setOpenChannel(openChannel === "voice" ? null : "voice")
+                    }
+                    aria-expanded={openChannel === "voice"}
+                    className="group prism-surface relative rounded-2xl p-6 text-left overflow-hidden card-lift hover:border-accent-50"
+                  >
+                    <div
+                      className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+                      style={{ boxShadow: `0 0 40px ${accent}15` }}
+                    />
+                    <div className="relative flex items-start justify-between gap-3">
+                      <div>
+                        <div
+                          className="w-12 h-12 rounded-xl flex items-center justify-center mb-3"
+                          style={{ backgroundColor: `${accent}15`, color: accent }}
+                        >
+                          <span className="material-symbols-outlined text-[22px]">
+                            headset_mic
+                          </span>
+                        </div>
+                        <h5 className="font-bold text-on-surface text-sm mb-1">
+                          Voice reports
+                        </h5>
+                        <p className="text-[11px] text-on-surface-variant/60 leading-relaxed">
+                          Inbound &amp; Queue Analytics
+                        </p>
+                      </div>
+                      <span
+                        className={`material-symbols-outlined text-on-surface-variant/50 transition-transform duration-300 ${
+                          openChannel === "voice" ? "rotate-180" : ""
+                        }`}
+                      >
+                        expand_more
+                      </span>
+                    </div>
+                  </button>
+
+                  {/* Email / Chat / Social — parked (stub pattern). */}
+                  <div
+                    aria-disabled="true"
+                    title="Coming soon"
+                    className="prism-surface relative rounded-2xl p-6 overflow-hidden cursor-default select-none"
+                  >
+                    <div className="relative">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="w-12 h-12 bg-surface-container-high rounded-xl flex items-center justify-center text-on-surface-variant/70">
+                          <span className="material-symbols-outlined text-[22px]">
+                            forum
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md bg-surface-container-high text-on-surface-variant/60">
+                          Coming soon
+                        </span>
+                      </div>
+                      <h5 className="font-bold text-on-surface/80 text-sm mb-1">
+                        Email, Chat, SM &amp; Walkins Report
+                      </h5>
+                      <p className="text-[11px] text-on-surface-variant/50 leading-relaxed">
+                        Planned — not available yet.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Monthly Ops Reports — parked (stub pattern). */}
+                  <div
+                    aria-disabled="true"
+                    title="Coming soon"
+                    className="prism-surface relative rounded-2xl p-6 overflow-hidden cursor-default select-none"
+                  >
+                    <div className="relative">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="w-12 h-12 bg-surface-container-high rounded-xl flex items-center justify-center text-on-surface-variant/70">
+                          <span className="material-symbols-outlined text-[22px]">
+                            insights
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md bg-surface-container-high text-on-surface-variant/60">
+                          Coming soon
+                        </span>
+                      </div>
+                      <h5 className="font-bold text-on-surface/80 text-sm mb-1">
+                        Monthly Ops Reports
+                      </h5>
+                      <p className="text-[11px] text-on-surface-variant/50 leading-relaxed">
+                        Planned — not available yet.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Voice expanded → the IVR & Queue Analytics reports. */}
+                {openChannel === "voice" && (
+                  <div className="mt-6">
+                    <IvrCategorySection
+                      realReports={ivrReports}
+                      linkBuilder={(code) =>
+                        `/department/${deptCode}/project/${projectCode}/report/${code}`
+                      }
+                    />
+                  </div>
+                )}
+              </section>
 
               {otherReports.length > 0 && (
                 <section>

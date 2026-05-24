@@ -33,14 +33,29 @@ export type IvrPlaceholder = {
 
 export const IVR_PLACEHOLDERS: IvrPlaceholder[] = [
   {
+    // Code stays `ivr-trend-comparison` for URL / policy / attachment
+    // compatibility; only the display name changes (migration 043 +
+    // Program.cs registration). Amir 2026-05-20.
     code: "ivr-trend-comparison",
-    name: "IVR Trend & Comparison",
+    name: "Inbound Trend & Comparison",
     description:
       "Year-over-year monthly comparison of offered and auto-handled calls. " +
       "Pivot table + daily trend chart with up to 3 comparison years.",
     icon: "trending_up",
     metricsCovered: "Offered, Auto-handled (metrics 10–11)",
     previewHref: "/preview/ivr-trend-comparison",
+  },
+  {
+    // New stub beside Trend & Comparison (Amir 2026-05-20). Non-clickable
+    // "Coming soon" card — no preview page wired yet. Promote to a clickable
+    // card by adding `previewHref` once the preview lands.
+    code: "forecasted-monthly-calls",
+    name: "Forecasted Monthly Calls",
+    description:
+      "Projected monthly call volumes per project against agreed SLA " +
+      "answered-vs-offered targets, surfaced for capacity planning.",
+    icon: "query_stats",
+    metricsCovered: "Metric 9 — SLA forecast",
   },
   // ── HIDDEN until the live backend ships — Amir 2026-05-13. Do NOT
   //    delete; uncomment when each report is ready.
@@ -89,7 +104,7 @@ export const IVR_PLACEHOLDERS: IvrPlaceholder[] = [
 // "IVR" so users grasp the scope on first read.
 export const IVR_CATEGORY_META = {
   code: "ivr",
-  label: "IVR & Queue Analytics",
+  label: "Inbound & Queue Analytics",
   blurb:
     "Inbound voice analytics — trend comparisons, IVR funnel, caller behavior, " +
     "hourly distribution, and SLA forecasts.",

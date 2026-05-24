@@ -269,14 +269,16 @@ export default function HrTemplateRecordsPage() {
               )}
               {exporting === "xlsx" ? "Exporting…" : "All Excel"}
             </button>
-            <button
-              type="button"
-              onClick={openNewModal}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary-dim transition-colors"
-            >
-              <span className="material-symbols-outlined text-[16px]">add</span>
-              New record
-            </button>
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={openNewModal}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary-dim transition-colors"
+              >
+                <span className="material-symbols-outlined text-[16px]">add</span>
+                New record
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -354,7 +356,9 @@ export default function HrTemplateRecordsPage() {
             </span>
             <p className="text-sm text-on-surface-variant/60">
               {total === 0
-                ? "No records yet. Click New record to create the first one."
+                ? isAdmin
+                  ? "No records yet. Click New record to create the first one."
+                  : "No records yet."
                 : "No records match your filters."}
             </p>
           </div>

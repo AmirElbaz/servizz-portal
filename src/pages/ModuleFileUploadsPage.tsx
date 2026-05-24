@@ -275,6 +275,14 @@ export default function ModuleFileUploadsPage() {
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
+  // The shared "BDF Reports" module is surfaced as "IT reports" under the
+  // IT department only (label override, same as the dept-page section
+  // heading). Module row name stays "BDF Reports" for every other dept.
+  const moduleDisplayName =
+    effectiveModuleCode === "bdf-reports" && effectiveDeptCode === "IT"
+      ? "IT reports"
+      : module?.name ?? effectiveModuleCode;
+
   return (
     <DashboardLayout wide>
       <div style={{ "--accent": ACCENT } as React.CSSProperties}>
@@ -289,14 +297,14 @@ export default function ModuleFileUploadsPage() {
               {dept?.name ?? effectiveDeptCode}
             </Link>
             <span className="material-symbols-outlined text-xs">chevron_right</span>
-            <span className="text-accent">{module?.name ?? effectiveModuleCode}</span>
+            <span className="text-accent">{moduleDisplayName}</span>
           </nav>
 
           <div className="flex flex-col sm:flex-row items-start justify-between gap-4 sm:gap-6">
             <div>
               <h1 className="text-xl sm:text-3xl lg:text-4xl font-black tracking-tighter font-headline text-on-surface flex items-center gap-3">
                 {module?.icon && <span className="material-symbols-outlined text-3xl text-accent">{module.icon}</span>}
-                {module?.name ?? effectiveModuleCode}
+                {moduleDisplayName}
               </h1>
               {module?.description && (
                 <p className="text-on-surface-variant/60 text-sm mt-1 max-w-2xl">{module.description}</p>

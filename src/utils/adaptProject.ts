@@ -12,5 +12,6 @@ export function adaptProject(p: CatalogProject): Project {
     logo: getLogoUrl(p.logoFilename),
     color: p.colorHex,
     hoverBorderColor: "",
+    logoPlateMode: p.logoPlateMode ?? null,
   };
 }

@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import DashboardLayout from "../../components/layout/DashboardLayout";
 import Skeleton from "../../components/admin/Skeleton";
 import { ConcurrencyError } from "../../services/admin";
+import { useAuth } from "../../services/auth";
 import {
   getHrRecord,
   getHrTemplate,
@@ -38,6 +39,13 @@ export default function HrRecordDetailPage() {
     templateId: string;
     recordId: string;
   }>();
+  // Record editing is admin-only (Amir 2026-05-21). Non-admins can still
+  // open the page (server keeps GETs on RequireHrAccessAsync), but the
+  // title/status/values inputs are read-only and the Save button is hidden.
+  // Server enforces the same via RequireHrAdminAsync on the PUT/PATCH
+  // endpoints — this is cosmetic gating, not the source of truth.
+  const { user } = useAuth();
+  const isAdmin = !!user?.isAdmin;
   const tid = Number(templateId);
   const rid = Number(recordId);
 
@@ -81,6 +89,7 @@ export default function HrRecordDetailPage() {
             valueNumber: v.valueNumber,
             valueDate: v.valueDate,
             valueBool: v.valueBool,
+            isApplicable: v.isApplicable,
           });
         }
         setValues(m);
@@ -134,7 +143,12 @@ export default function HrRecordDetailPage() {
 
   const progress = useMemo(() => {
     if (!template) return { done: 0, total: 0, pct: 0 };
-    const checks = template.fields.filter((f) => f.fieldType === "checkbox");
+    // N/A excludes a checkbox from both numerator and denominator. A user
+    // toggling N/A on a previously-blank field shrinks the total; toggling
+    // back grows it again.
+    const checks = template.fields.filter(
+      (f) => f.fieldType === "checkbox" && !isMarkedNa(values.get(f.id))
+    );
     const done = checks.filter((f) => values.get(f.id)?.valueBool === true).length;
     return { done, total: checks.length, pct: checks.length > 0 ? Math.round((100 * done) / checks.length) : 0 };
   }, [template, values]);
@@ -144,9 +158,16 @@ export default function HrRecordDetailPage() {
   //   number        : any numeric value (including 0)
   //   date          : any date set
   //   checkbox      : must be ticked (TRUE) — required checkbox means "ack"
+  // A field marked N/A counts as satisfied — the user has explicitly opted
+  // out, which is the whole point of the toggle.
   const missingRequired = useMemo(() => {
     if (!template) return [] as HrTemplateField[];
-    return template.fields.filter((f) => f.isRequired && !isFieldFilled(f, values.get(f.id)));
+    return template.fields.filter((f) => {
+      if (!f.isRequired) return false;
+      const v = values.get(f.id);
+      if (isMarkedNa(v)) return false;
+      return !isFieldFilled(f, v);
+    });
   }, [template, values]);
 
   // ── Value change → dirty set (no auto-save) ─────────────────────────────
@@ -166,6 +187,16 @@ export default function HrRecordDetailPage() {
     // Clear the transient "saved" badge the moment the user edits again, so
     // it never stays green while there are unsaved changes.
     setSaveState((s) => (s === "saved" ? "idle" : s));
+  }
+
+  // Toggle a field's N/A flag. Marking N/A also clears the typed value
+  // (a stored tick or text shouldn't sit under an N/A label); marking back
+  // to applicable leaves the field unticked / empty so the user types it
+  // fresh.
+  function toggleNa(fieldId: number, markedNa: boolean) {
+    patchValue(fieldId, markedNa
+      ? { isApplicable: false, valueText: null, valueNumber: null, valueDate: null, valueBool: null }
+      : { isApplicable: true,  valueText: null, valueNumber: null, valueDate: null, valueBool: null });
   }
 
   async function handleSave() {
@@ -200,6 +231,10 @@ export default function HrRecordDetailPage() {
           valueNumber: v.valueNumber ?? null,
           valueDate: v.valueDate ?? null,
           valueBool: v.valueBool ?? null,
+          // null = "don't change" on the server; we always send the local
+          // state explicitly so toggling N/A and toggling back both round-
+          // trip correctly.
+          isApplicable: v.isApplicable ?? true,
         };
       });
       const { etag: newEtag } = await patchHrRecordValues(rid, patches, etag);
@@ -368,13 +403,16 @@ export default function HrRecordDetailPage() {
               value={record.title}
               onChange={(e) => setRecord({ ...record, title: e.target.value })}
               onBlur={(e) => changeTitleOrStatus(e.target.value || "Untitled", record.status)}
-              className="w-full text-2xl font-black tracking-tighter font-headline text-on-surface bg-transparent border-0 focus:outline-none focus:ring-2 focus:ring-primary/20 rounded px-1"
+              disabled={!isAdmin}
+              readOnly={!isAdmin}
+              className="w-full text-2xl font-black tracking-tighter font-headline text-on-surface bg-transparent border-0 focus:outline-none focus:ring-2 focus:ring-primary/20 rounded px-1 disabled:cursor-not-allowed"
             />
             <div className="mt-3 flex items-center gap-3 flex-wrap">
               <select
                 value={record.status}
                 onChange={(e) => changeTitleOrStatus(record.title, e.target.value as HrRecordStatus)}
-                className="text-xs font-bold px-3 py-1.5 rounded-full bg-surface-container-high/60 border border-on-surface-variant/10 focus:outline-none focus:border-primary/30"
+                disabled={!isAdmin}
+                className="text-xs font-bold px-3 py-1.5 rounded-full bg-surface-container-high/60 border border-on-surface-variant/10 focus:outline-none focus:border-primary/30 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <option value="open">Open</option>
                 <option value="completed">Completed</option>
@@ -388,28 +426,30 @@ export default function HrRecordDetailPage() {
           <div className="flex items-center gap-3 ml-auto shrink-0">
             {progress.total > 0 && <ProgressRing done={progress.done} total={progress.total} pct={progress.pct} />}
             <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={concurrency || saveState === "saving"}
-                title={
-                  isDirty
-                    ? "Save changes (Ctrl+S)"
-                    : "Nothing to save yet — click to check required fields"
-                }
-                className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-colors whitespace-nowrap ${
-                  isDirty
-                    ? "bg-primary text-white hover:bg-primary-dim"
-                    : "bg-surface-container-high/70 text-on-surface hover:bg-surface-container-high"
-                } disabled:cursor-not-allowed disabled:opacity-60`}
-              >
-                <span className="material-symbols-outlined text-[16px]">save</span>
-                {saveState === "saving"
-                  ? "Saving…"
-                  : isDirty
-                    ? `Save${dirtyIds.size > 0 ? ` (${dirtyIds.size})` : ""}`
-                    : "Save"}
-              </button>
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={concurrency || saveState === "saving"}
+                  title={
+                    isDirty
+                      ? "Save changes (Ctrl+S)"
+                      : "Nothing to save yet — click to check required fields"
+                  }
+                  className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-colors whitespace-nowrap ${
+                    isDirty
+                      ? "bg-primary text-white hover:bg-primary-dim"
+                      : "bg-surface-container-high/70 text-on-surface hover:bg-surface-container-high"
+                  } disabled:cursor-not-allowed disabled:opacity-60`}
+                >
+                  <span className="material-symbols-outlined text-[16px]">save</span>
+                  {saveState === "saving"
+                    ? "Saving…"
+                    : isDirty
+                      ? `Save${dirtyIds.size > 0 ? ` (${dirtyIds.size})` : ""}`
+                      : "Save"}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => handleExport("pdf")}
@@ -465,7 +505,8 @@ export default function HrRecordDetailPage() {
                 field={f}
                 value={values.get(f.id)}
                 onPatch={(p) => patchValue(f.id, p)}
-                disabled={concurrency}
+                onToggleNa={(next) => toggleNa(f.id, next)}
+                disabled={!isAdmin || concurrency}
               />
             ))}
           </div>
@@ -492,7 +533,8 @@ export default function HrRecordDetailPage() {
                     field={f}
                     value={v}
                     onPatch={(p) => patchValue(f.id, p)}
-                    disabled={concurrency}
+                    onToggleNa={(next) => toggleNa(f.id, next)}
+                    disabled={!isAdmin || concurrency}
                     hasError={hasError}
                   />
                 </div>
@@ -504,17 +546,20 @@ export default function HrRecordDetailPage() {
 
       {/* ── Sections ── */}
       {sections.grouped.map(({ name, fields }) => {
-        const checkFields = fields.filter((f) => f.fieldType === "checkbox");
-        const done = checkFields.filter((f) => values.get(f.id)?.valueBool === true).length;
+        // Same N/A-aware progress as the header ring, scoped to this section.
+        const applicableChecks = fields.filter(
+          (f) => f.fieldType === "checkbox" && !isMarkedNa(values.get(f.id))
+        );
+        const done = applicableChecks.filter((f) => values.get(f.id)?.valueBool === true).length;
         return (
           <div key={name} className="bg-white rounded-2xl border border-on-surface-variant/5 p-6 mb-5">
             <div className="flex items-center justify-between mb-4">
               <p className="text-sm font-bold text-on-surface">
                 {name}
               </p>
-              {checkFields.length > 0 && (
+              {applicableChecks.length > 0 && (
                 <span className="text-[11px] font-bold text-primary tabular-nums">
-                  {done}/{checkFields.length}
+                  {done}/{applicableChecks.length}
                 </span>
               )}
             </div>
@@ -532,7 +577,8 @@ export default function HrRecordDetailPage() {
                       field={f}
                       value={v}
                       onPatch={(p) => patchValue(f.id, p)}
-                      disabled={concurrency}
+                      onToggleNa={(next) => toggleNa(f.id, next)}
+                      disabled={!isAdmin || concurrency}
                       hasError={hasError}
                     />
                   </div>
@@ -546,26 +592,28 @@ export default function HrRecordDetailPage() {
       {/* ── Bottom save bar ──
           Mirrors the header Save button so users who scroll to the end of a
           long checklist don't have to scroll back to the top to commit. */}
-      <div className="mt-6 flex items-center justify-end gap-3 bg-white rounded-2xl border border-on-surface-variant/5 p-4">
-        <SaveStatus state={saveState} dirtyCount={dirtyIds.size} />
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={concurrency || saveState === "saving"}
-          className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold transition-colors whitespace-nowrap ${
-            isDirty
-              ? "bg-primary text-white hover:bg-primary-dim"
-              : "bg-surface-container-high/70 text-on-surface hover:bg-surface-container-high"
-          } disabled:cursor-not-allowed disabled:opacity-60`}
-        >
-          <span className="material-symbols-outlined text-[16px]">save</span>
-          {saveState === "saving"
-            ? "Saving…"
-            : isDirty
-              ? `Save${dirtyIds.size > 0 ? ` (${dirtyIds.size})` : ""}`
-              : "Save"}
-        </button>
-      </div>
+      {isAdmin && (
+        <div className="mt-6 flex items-center justify-end gap-3 bg-white rounded-2xl border border-on-surface-variant/5 p-4">
+          <SaveStatus state={saveState} dirtyCount={dirtyIds.size} />
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={concurrency || saveState === "saving"}
+            className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold transition-colors whitespace-nowrap ${
+              isDirty
+                ? "bg-primary text-white hover:bg-primary-dim"
+                : "bg-surface-container-high/70 text-on-surface hover:bg-surface-container-high"
+            } disabled:cursor-not-allowed disabled:opacity-60`}
+          >
+            <span className="material-symbols-outlined text-[16px]">save</span>
+            {saveState === "saving"
+              ? "Saving…"
+              : isDirty
+                ? `Save${dirtyIds.size > 0 ? ` (${dirtyIds.size})` : ""}`
+                : "Save"}
+          </button>
+        </div>
+      )}
     </DashboardLayout>
   );
 }
@@ -589,18 +637,27 @@ function isFieldFilled(field: HrTemplateField, v: HrValuePatch | undefined): boo
   return false;
 }
 
+// A value is "marked N/A" when its isApplicable flag is explicitly false.
+// Default (undefined / true) means applicable — same convention as the
+// server-side column default.
+function isMarkedNa(v: HrValuePatch | undefined): boolean {
+  return v?.isApplicable === false;
+}
+
 // ── Field input dispatcher ──────────────────────────────────────────────────
 
 function FieldInput({
   field,
   value,
   onPatch,
+  onToggleNa,
   disabled,
   hasError,
 }: {
   field: HrTemplateField;
   value: HrValuePatch | undefined;
   onPatch: (p: Partial<HrValuePatch>) => void;
+  onToggleNa: (next: boolean) => void;
   disabled: boolean;
   hasError?: boolean;
 }) {
@@ -617,35 +674,50 @@ function FieldInput({
 
   const labelClass = "text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/60 block mb-1";
 
+  // N/A state. Only togglable when the admin enabled allowsNa on the field.
+  // When marked N/A, the input is disabled and visually de-emphasized; the
+  // chip switches to "Applicable" to invite toggling back.
+  const markedNa = value?.isApplicable === false;
+  const inputDisabled = disabled || markedNa;
+
   if (field.fieldType === "checkbox") {
     const checked = value?.valueBool === true;
     return (
       <label
-        className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
-          checked
-            ? "bg-success-container"
-            : hasError
-              ? "bg-error/5 border border-error/40"
-              : "hover:bg-surface-container-low/40"
+        className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+          markedNa
+            ? "bg-surface-container-low/40 opacity-60"
+            : checked
+              ? "bg-success-container cursor-pointer"
+              : hasError
+                ? "bg-error/5 border border-error/40 cursor-pointer"
+                : "hover:bg-surface-container-low/40 cursor-pointer"
         } ${disabled ? "opacity-60 cursor-not-allowed" : ""}`}
       >
         <input
           type="checkbox"
           checked={checked}
-          disabled={disabled}
+          disabled={inputDisabled}
           onChange={(e) => onPatch({ valueBool: e.target.checked, valueText: null, valueNumber: null, valueDate: null })}
           className="w-4 h-4"
           style={{ accentColor: "var(--color-success)" }}
         />
         <span
           className={`text-sm flex-1 ${
-            checked ? "text-on-success-container font-medium" : "text-on-surface-variant"
+            markedNa
+              ? "text-on-surface-variant/60 line-through"
+              : checked
+                ? "text-on-success-container font-medium"
+                : "text-on-surface-variant"
           }`}
         >
           {field.label}
-          {field.isRequired && <span className="text-error ml-1">*</span>}
+          {field.isRequired && !markedNa && <span className="text-error ml-1">*</span>}
         </span>
-        {checked && (
+        {field.allowsNa && (
+          <NaChip markedNa={markedNa} disabled={disabled} onToggle={onToggleNa} />
+        )}
+        {!markedNa && checked && (
           <span
             className="material-symbols-outlined text-[16px] text-success shrink-0"
             style={{ fontVariationSettings: "'FILL' 1" }}
@@ -658,22 +730,34 @@ function FieldInput({
     );
   }
 
+  // Label + optional N/A chip — shared across non-checkbox field types so
+  // every input renders the same header layout.
+  const header = (
+    <div className="flex items-center justify-between gap-2 mb-1">
+      <span className={`${labelClass} mb-0 ${markedNa ? "line-through opacity-60" : ""}`}>
+        {field.label}
+        {field.isRequired && !markedNa && <span className="text-error ml-1">*</span>}
+      </span>
+      {field.allowsNa && (
+        <NaChip markedNa={markedNa} disabled={disabled} onToggle={onToggleNa} />
+      )}
+    </div>
+  );
+
   if (field.fieldType === "text") {
     return (
       <div>
-        <label className={labelClass}>
-          {field.label}
-          {field.isRequired && <span className="text-error ml-1">*</span>}
-        </label>
+        {header}
         <input
           type="text"
-          value={value?.valueText ?? ""}
-          disabled={disabled}
+          value={markedNa ? "" : value?.valueText ?? ""}
+          disabled={inputDisabled}
+          placeholder={markedNa ? "Not applicable" : undefined}
           onChange={(e) => onPatch({ valueText: e.target.value || null, valueNumber: null, valueDate: null, valueBool: null })}
           className={inputClass}
           aria-invalid={hasError || undefined}
         />
-        {hasError && <ErrorHint label={field.label} />}
+        {hasError && !markedNa && <ErrorHint label={field.label} />}
       </div>
     );
   }
@@ -681,14 +765,12 @@ function FieldInput({
   if (field.fieldType === "number") {
     return (
       <div>
-        <label className={labelClass}>
-          {field.label}
-          {field.isRequired && <span className="text-error ml-1">*</span>}
-        </label>
+        {header}
         <input
           type="number"
-          value={value?.valueNumber ?? ""}
-          disabled={disabled}
+          value={markedNa ? "" : value?.valueNumber ?? ""}
+          disabled={inputDisabled}
+          placeholder={markedNa ? "Not applicable" : undefined}
           onChange={(e) => {
             const n = e.target.value === "" ? null : Number(e.target.value);
             onPatch({ valueNumber: n, valueText: null, valueDate: null, valueBool: null });
@@ -696,7 +778,7 @@ function FieldInput({
           className={inputClass}
           aria-invalid={hasError || undefined}
         />
-        {hasError && <ErrorHint label={field.label} />}
+        {hasError && !markedNa && <ErrorHint label={field.label} />}
       </div>
     );
   }
@@ -704,19 +786,16 @@ function FieldInput({
   if (field.fieldType === "date") {
     return (
       <div>
-        <label className={labelClass}>
-          {field.label}
-          {field.isRequired && <span className="text-error ml-1">*</span>}
-        </label>
+        {header}
         <input
           type="date"
-          value={value?.valueDate?.slice(0, 10) ?? ""}
-          disabled={disabled}
+          value={markedNa ? "" : value?.valueDate?.slice(0, 10) ?? ""}
+          disabled={inputDisabled}
           onChange={(e) => onPatch({ valueDate: e.target.value || null, valueText: null, valueNumber: null, valueBool: null })}
           className={inputClass}
           aria-invalid={hasError || undefined}
         />
-        {hasError && <ErrorHint label={field.label} />}
+        {hasError && !markedNa && <ErrorHint label={field.label} />}
       </div>
     );
   }
@@ -727,30 +806,67 @@ function FieldInput({
       : [];
     return (
       <div>
-        <label className={labelClass}>
-          {field.label}
-          {field.isRequired && <span className="text-error ml-1">*</span>}
-        </label>
+        {header}
         <select
-          value={value?.valueText ?? ""}
-          disabled={disabled}
+          value={markedNa ? "" : value?.valueText ?? ""}
+          disabled={inputDisabled}
           onChange={(e) => onPatch({ valueText: e.target.value || null, valueNumber: null, valueDate: null, valueBool: null })}
           className={inputClass}
           aria-invalid={hasError || undefined}
         >
-          <option value="">—</option>
+          <option value="">{markedNa ? "Not applicable" : "—"}</option>
           {options.map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
             </option>
           ))}
         </select>
-        {hasError && <ErrorHint label={field.label} />}
+        {hasError && !markedNa && <ErrorHint label={field.label} />}
       </div>
     );
   }
 
   return null;
+}
+
+// Small toggle pill placed next to a togglable field. When on (markedNa),
+// renders as a muted "Not applicable" badge; when off, a clickable
+// "Mark N/A" button. Clicking flips the field's isApplicable flag through
+// the parent's onToggle handler.
+function NaChip({
+  markedNa,
+  disabled,
+  onToggle,
+}: {
+  markedNa: boolean;
+  disabled: boolean;
+  onToggle: (next: boolean) => void;
+}) {
+  if (markedNa) {
+    return (
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => onToggle(false)}
+        title="Mark this field as applicable again"
+        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-container-high/60 border border-on-surface-variant/15 text-[10px] font-bold text-on-surface-variant/70 hover:bg-surface-container-high disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+      >
+        <span className="material-symbols-outlined text-[12px]">block</span>
+        N/A · undo
+      </button>
+    );
+  }
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={() => onToggle(true)}
+      title="Mark this field non-applicable — it won't count toward progress."
+      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-dashed border-on-surface-variant/25 text-[10px] font-bold text-on-surface-variant/60 hover:bg-surface-container-low/60 hover:text-on-surface-variant disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+    >
+      Mark N/A
+    </button>
+  );
 }
 
 // Small inline helper text shown under a flagged required field.

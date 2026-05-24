@@ -9,6 +9,7 @@ import {
   formatRecentAgo,
   type RecentItem,
 } from "../../hooks/useRecentItems";
+import ProjectLogoPlate from "../../components/ProjectLogoPlate";
 
 interface Props {
   projects: FeaturedDepartment[];
@@ -147,23 +148,36 @@ export default function DashboardVariantC({ projects }: Props) {
                 />
                 <div className="relative flex flex-col flex-1">
                   <div
-                    className="w-16 h-16 rounded-2xl flex items-center justify-center mb-6 transition-transform duration-300 group-hover:scale-110"
+                    className="w-16 h-16 rounded-2xl overflow-hidden mb-6 transition-transform duration-300 group-hover:scale-110"
                     style={{
-                      background: `linear-gradient(135deg, ${project.color}18 0%, ${project.color}06 100%)`,
-                      border: `1px solid ${project.color}20`,
                       transform:
                         "translate3d(var(--ix, 0px), var(--iy, 0px), 0)",
                     }}
                   >
                     {project.logo ? (
-                      <img src={project.logo} alt={project.code} className="w-11 h-11 object-contain" />
+                      // Tile chosen from the logo's own brightness, never
+                      // the accent (it usually matches the logo and blends).
+                      <ProjectLogoPlate
+                        src={project.logo}
+                        alt={project.code}
+                        className="w-full h-full rounded-2xl"
+                        imgClassName="w-11 h-11"
+                      />
                     ) : (
-                      <span
-                        className="material-symbols-outlined"
-                        style={{ fontSize: 32, color: project.color }}
+                      <div
+                        className="w-full h-full flex items-center justify-center rounded-2xl"
+                        style={{
+                          background: `linear-gradient(135deg, ${project.color}18 0%, ${project.color}06 100%)`,
+                          border: `1px solid ${project.color}20`,
+                        }}
                       >
-                        {project.icon || "domain"}
-                      </span>
+                        <span
+                          className="material-symbols-outlined"
+                          style={{ fontSize: 32, color: project.color }}
+                        >
+                          {project.icon || "domain"}
+                        </span>
+                      </div>
                     )}
                   </div>
                   <span

@@ -30,6 +30,9 @@ export interface CatalogProject {
   fullDescription: string | null;
   colorHex: string;
   logoFilename: string | null;
+  // Per-project logo-tile override. 'dark' / 'light' force the plate;
+  // null = use the brightness auto-analysis (utils/logoPlate.ts).
+  logoPlateMode?: "dark" | "light" | null;
   icon: string | null;
   // Group assignment — nullable. Set by /Admin/projects/{id}/group PATCH.
   // When null the project renders in the "Other" bucket on the dept

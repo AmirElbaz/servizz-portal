@@ -1,5 +1,5 @@
 import DepartmentIcon from "../DepartmentIcon";
-import { onProjectLogoError } from "../../services/catalog";
+import ProjectLogoPlate from "../ProjectLogoPlate";
 
 // Global brand footer for every chart card across the reporting system.
 //
@@ -16,7 +16,15 @@ import { onProjectLogoError } from "../../services/catalog";
 // adopt it through the migration that landed alongside this file.
 
 export type BrandScope =
-  | { kind: "project"; project: { name: string; logo?: string } }
+  | {
+      kind: "project";
+      project: {
+        name: string;
+        logo?: string;
+        // Per-project DB override (avaya_projects.logo_plate_mode).
+        logoPlateMode?: "dark" | "light" | null;
+      };
+    }
   | { kind: "dept"; dept: { name: string; icon?: string | null } };
 
 interface ChartCardBrandStripProps {
@@ -27,21 +35,22 @@ interface ChartCardBrandStripProps {
 export default function ChartCardBrandStrip({ scope, accentColor }: ChartCardBrandStripProps) {
   const ownerName = scope.kind === "project" ? scope.project.name : scope.dept.name;
 
+  // Logos are deliberately large here. The whole card is captured to a wide
+  // PNG and then scaled DOWN to A4 width in the PDF, so a small on-screen
+  // strip becomes illegible in the export (Amir 2026-05-18: "i can barely
+  // see the logos"). Sizes are ~1.75x the original.
   return (
-    {/* Logos are deliberately large here. The whole card is captured to a
-        wide PNG and then scaled DOWN to A4 width in the PDF, so a small
-        on-screen strip becomes illegible in the export (Amir 2026-05-18:
-        "i can barely see the logos"). Sizes are ~1.75x the original. */}
     <div className="mt-4 pt-4 border-t border-on-surface-variant/6 flex items-center justify-between gap-3">
       {/* Left cluster: project icon + Servizz logo (no project name) */}
       <div className="flex items-center gap-3 min-w-0">
         {scope.kind === "project" && scope.project.logo ? (
-          <img
+          <ProjectLogoPlate
             src={scope.project.logo}
-            onError={onProjectLogoError}
             alt={ownerName}
             title={ownerName}
-            className="h-8 w-auto max-w-[120px] object-contain"
+            className="h-9 rounded-md p-1"
+            imgClassName="h-full w-auto max-w-[112px]"
+            override={scope.project.logoPlateMode}
           />
         ) : (
           <div

@@ -7,11 +7,12 @@ import {
   fetchCatalogProject,
   fetchCatalogDepartments,
   fetchCatalogReports,
-  getLogoUrl,
   onProjectLogoError,
   type CatalogDepartment,
   type CatalogReport,
 } from "../services/catalog";
+import { useLogoPlate } from "../utils/logoPlate";
+import { adaptProject } from "../utils/adaptProject";
 
 export default function ReportsPage() {
   const { projectCode, departmentCode } = useParams<{
@@ -24,6 +25,9 @@ export default function ReportsPage() {
   const [reports, setReports] = useState<CatalogReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  // Tile is chosen from the logo's own brightness, never the accent. A
+  // per-project DB override (avaya_projects.logo_plate_mode) wins when set.
+  const logoPlate = useLogoPlate(project?.logo, project?.logoPlateMode);
 
   useEffect(() => {
     if (!projectCode || !departmentCode) return;
@@ -35,17 +39,9 @@ export default function ReportsPage() {
       fetchCatalogReports(projectCode, departmentCode),
     ])
       .then(([p, depts, reps]) => {
-        setProject({
-          id: p.code,
-          code: p.shortLabel,
-          name: p.displayName,
-          description: p.description ?? "",
-          fullDescription: p.fullDescription ?? "",
-          icon: p.icon ?? "",
-          logo: getLogoUrl(p.logoFilename),
-          color: p.colorHex,
-          hoverBorderColor: "",
-        });
+        // adaptProject preserves logoPlateMode so the DB override flows
+        // through (see Locus regression 2026-05-20).
+        setProject(adaptProject(p));
         setDepartments(depts);
         setReports(reps);
       })
@@ -114,7 +110,12 @@ export default function ReportsPage() {
               </h1>
             </div>
           </div>
-          <div className="hidden sm:flex w-36 md:w-48 lg:w-56 bg-white items-center justify-center shrink-0 p-4 sm:p-6 relative">
+          <div
+            className={`hidden sm:flex w-36 md:w-48 lg:w-56 items-center justify-center shrink-0 p-4 sm:p-6 relative ${
+              logoPlate.border ? "ring-1 ring-inset ring-on-surface-variant/15" : ""
+            }`}
+            style={{ backgroundColor: logoPlate.bg }}
+          >
             <svg
               className="absolute top-0 right-4 w-8 h-12 drop-shadow-md"
               viewBox="0 0 36 56"

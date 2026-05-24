@@ -27,6 +27,7 @@ import {
   updateHrTemplate,
   addHrField,
   updateHrField,
+  setHrFieldAllowsNa,
   deleteHrField,
   reorderHrFields,
   addHrSection,
@@ -181,6 +182,7 @@ export default function HrTemplateDesignerPage() {
         isRequired: false,
         showOnCreate: false,
         placement: "detail",
+        allowsNa: false,
         options: null,
         sortOrder: nextSortOrder,
       });
@@ -204,6 +206,7 @@ export default function HrTemplateDesignerPage() {
         isRequired,
         showOnCreate: false,
         placement: "creation",
+        allowsNa: false,
         options: null,
         sortOrder: nextSortOrder,
       });
@@ -223,6 +226,7 @@ export default function HrTemplateDesignerPage() {
         isRequired:   patch.isRequired   ?? field.isRequired,
         showOnCreate: patch.showOnCreate ?? field.showOnCreate,
         placement:    patch.placement    ?? field.placement,
+        allowsNa:     patch.allowsNa     ?? field.allowsNa,
         options:      patch.options      !== undefined ? patch.options      : field.options,
       });
       await reload();
@@ -233,6 +237,26 @@ export default function HrTemplateDesignerPage() {
       } else {
         setError(msg);
       }
+    }
+  }
+
+  // Dedicated path for the allows-N/A toggle so it works even when the
+  // template is design-locked (records exist). The regular updateHrField
+  // endpoint 409s in that case; this one hits a lock-bypassed endpoint and
+  // only flips the single flag. Local state mirrors the change so the row
+  // updates immediately.
+  async function handleToggleAllowsNa(field: HrTemplateField, next: boolean) {
+    if (!template) return;
+    try {
+      await setHrFieldAllowsNa(field.id, next);
+      setTemplate({
+        ...template,
+        fields: template.fields.map((f) =>
+          f.id === field.id ? { ...f, allowsNa: next } : f
+        ),
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to update N/A setting");
     }
   }
 
@@ -425,6 +449,7 @@ export default function HrTemplateDesignerPage() {
           onAddField={() => handleAddField(section.id)}
           onReorderFields={(e) => handleReorderFields(fields, section.id, e)}
           onUpdateField={handleUpdateField}
+          onToggleAllowsNa={handleToggleAllowsNa}
           onDeleteField={setConfirmDeleteField}
         />
       ))}
@@ -573,6 +598,7 @@ export default function HrTemplateDesignerPage() {
         creationFields={creationFields}
         onAddField={handleAddCreationField}
         onUpdateField={handleUpdateField}
+        onToggleAllowsNa={handleToggleAllowsNa}
         onDeleteField={setConfirmDeleteField}
       />
 
@@ -583,6 +609,7 @@ export default function HrTemplateDesignerPage() {
         onAddField={() => handleAddField(null)}
         onReorderFields={(e) => handleReorderFields(detailsBucket, null, e)}
         onUpdateField={handleUpdateField}
+        onToggleAllowsNa={handleToggleAllowsNa}
         onDeleteField={setConfirmDeleteField}
       />
 
@@ -711,6 +738,7 @@ function CreationFormCard({
   creationFields,
   onAddField,
   onUpdateField,
+  onToggleAllowsNa,
   onDeleteField,
 }: {
   titleLabel: string;
@@ -718,6 +746,7 @@ function CreationFormCard({
   creationFields: HrTemplateField[];
   onAddField: (label: string, fieldType: HrFieldType, isRequired: boolean) => Promise<void>;
   onUpdateField: (f: HrTemplateField, patch: Partial<HrTemplateField>) => void;
+  onToggleAllowsNa: (f: HrTemplateField, next: boolean) => void;
   onDeleteField: (f: HrTemplateField) => void;
 }) {
   const [label, setLabel] = useState(titleLabel);
@@ -797,6 +826,7 @@ function CreationFormCard({
               index={i + 1}
               field={f}
               onUpdate={(patch) => onUpdateField(f, patch)}
+              onToggleAllowsNa={(next) => onToggleAllowsNa(f, next)}
               onDelete={() => onDeleteField(f)}
             />
           ))}
@@ -854,11 +884,13 @@ function CreationFieldRow({
   index,
   field,
   onUpdate,
+  onToggleAllowsNa,
   onDelete,
 }: {
   index: number;
   field: HrTemplateField;
   onUpdate: (patch: Partial<HrTemplateField>) => void;
+  onToggleAllowsNa: (next: boolean) => void;
   onDelete: () => void;
 }) {
   const [label, setLabel] = useState(field.label);
@@ -895,6 +927,7 @@ function CreationFieldRow({
         />
         Required
       </label>
+      <AllowsNaToggle field={field} onChange={onToggleAllowsNa} />
       <button
         type="button"
         onClick={onDelete}
@@ -907,6 +940,33 @@ function CreationFieldRow({
   );
 }
 
+// Standalone toggle: marks a field as "user can mark N/A on a record". Lives
+// inside the design-lock wrapper but bypasses it (pointer-events-auto +
+// dedicated lock-bypass endpoint), because flipping this flag is non-
+// destructive and explicitly allowed even when records exist.
+function AllowsNaToggle({
+  field,
+  onChange,
+}: {
+  field: HrTemplateField;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <label
+      className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-on-surface-variant/70 pointer-events-auto"
+      title="Lets users mark this field N/A on a record. Editable even after the template has records."
+    >
+      <input
+        type="checkbox"
+        checked={field.allowsNa}
+        onChange={(e) => onChange(e.target.checked)}
+        className="accent-primary pointer-events-auto"
+      />
+      Allows N/A
+    </label>
+  );
+}
+
 // ── Details bucket (no section_id) ───────────────────────────────────────
 function DetailsBucket({
   fields,
@@ -914,6 +974,7 @@ function DetailsBucket({
   onAddField,
   onReorderFields,
   onUpdateField,
+  onToggleAllowsNa,
   onDeleteField,
 }: {
   fields: HrTemplateField[];
@@ -921,6 +982,7 @@ function DetailsBucket({
   onAddField: () => void;
   onReorderFields: (e: DragEndEvent) => void;
   onUpdateField: (f: HrTemplateField, patch: Partial<HrTemplateField>) => void;
+  onToggleAllowsNa: (f: HrTemplateField, next: boolean) => void;
   onDeleteField: (f: HrTemplateField) => void;
 }) {
   const sensors = useSensors(
@@ -959,6 +1021,7 @@ function DetailsBucket({
                   field={f}
                   allSections={allSections}
                   onUpdate={(p) => onUpdateField(f, p)}
+                  onToggleAllowsNa={(next) => onToggleAllowsNa(f, next)}
                   onDelete={() => onDeleteField(f)}
                 />
               ))}
@@ -1014,6 +1077,7 @@ function SortableSection({
   onAddField,
   onReorderFields,
   onUpdateField,
+  onToggleAllowsNa,
   onDeleteField,
 }: {
   section: HrTemplateSection;
@@ -1024,6 +1088,7 @@ function SortableSection({
   onAddField: () => void;
   onReorderFields: (e: DragEndEvent) => void;
   onUpdateField: (f: HrTemplateField, patch: Partial<HrTemplateField>) => void;
+  onToggleAllowsNa: (f: HrTemplateField, next: boolean) => void;
   onDeleteField: (f: HrTemplateField) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -1096,6 +1161,7 @@ function SortableSection({
                   field={f}
                   allSections={allSections}
                   onUpdate={(p) => onUpdateField(f, p)}
+                  onToggleAllowsNa={(next) => onToggleAllowsNa(f, next)}
                   onDelete={() => onDeleteField(f)}
                 />
               ))}
@@ -1127,11 +1193,13 @@ function SortableFieldRow({
   field,
   allSections,
   onUpdate,
+  onToggleAllowsNa,
   onDelete,
 }: {
   field: HrTemplateField;
   allSections: HrTemplateSection[];
   onUpdate: (p: Partial<HrTemplateField>) => void;
+  onToggleAllowsNa: (next: boolean) => void;
   onDelete: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -1218,6 +1286,7 @@ function SortableFieldRow({
           />
           Required
         </label>
+        <AllowsNaToggle field={field} onChange={onToggleAllowsNa} />
         <button
           type="button"
           onClick={onDelete}

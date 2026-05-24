@@ -8,6 +8,8 @@ export interface Project {
   logo: string;
   color: string;
   hoverBorderColor: string;
+  // Per-project logo-tile override (db-set). Undefined / null = auto.
+  logoPlateMode?: "dark" | "light" | null;
 }
 
 export const projects: Project[] = [

@@ -183,7 +183,7 @@ export default function IvrFunnelPreviewPage() {
       if (cp) {
         return {
           kind: "project",
-          project: { name: cp.displayName, logo: getLogoUrl(cp.logoFilename) },
+          project: { name: cp.displayName, logo: getLogoUrl(cp.logoFilename), logoPlateMode: cp.logoPlateMode },
         };
       }
       const label = MOCK_PROJECTS.find((p) => p.value === project)?.label ?? project.toUpperCase();
@@ -269,7 +269,7 @@ export default function IvrFunnelPreviewPage() {
             : null;
           const headerProject =
             proj && proj.logoFilename
-              ? { name: proj.displayName, logo: getLogoUrl(proj.logoFilename) }
+              ? { name: proj.displayName, logo: getLogoUrl(proj.logoFilename), logoPlateMode: proj.logoPlateMode }
               : null;
           const projDisplay = proj?.displayName ?? projectCode?.toUpperCase();
           return (

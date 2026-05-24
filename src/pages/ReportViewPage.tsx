@@ -20,10 +20,10 @@ import {
   fetchCatalogProject,
   fetchCatalogDepartment,
   fetchCatalogReport,
-  getLogoUrl,
   type CatalogDepartmentSummary,
   type CatalogReport,
 } from "../services/catalog";
+import { adaptProject } from "../utils/adaptProject";
 import { pushRecentItem } from "../hooks/useRecentItems";
 import ErrorBanner from "../components/admin/ErrorBanner";
 import ReportPageHeader, {
@@ -32,6 +32,7 @@ import ReportPageHeader, {
   BreadcrumbLink,
 } from "../components/reports/ReportPageHeader";
 import ChartCardBrandStrip from "../components/reports/ChartCardBrandStrip";
+import { getLogoPlate } from "../utils/logoPlate";
 import {
   fetchRawData,
   fetchGroupedData,
@@ -225,17 +226,10 @@ export default function ReportViewPage() {
       fetchCatalogReport(reportCode),
     ])
       .then(([p, d, r]) => {
-        setProject({
-          id: p.code,
-          code: p.shortLabel,
-          name: p.displayName,
-          description: p.description ?? "",
-          fullDescription: p.fullDescription ?? "",
-          icon: p.icon ?? "",
-          logo: getLogoUrl(p.logoFilename),
-          color: p.colorHex,
-          hoverBorderColor: "",
-        });
+        // adaptProject preserves logoPlateMode so the page header, chart-strip
+        // footers, and PDF/Excel exports all honor the per-project DB override
+        // (see Locus regression note in AbandonedWithin5sReportPage).
+        setProject(adaptProject(p));
         setDept(d);
         setReport(r);
         pushRecentItem({
@@ -326,9 +320,13 @@ export default function ReportViewPage() {
       if (blobs.length === 0) {
         console.warn("[pdf-export] no chart images captured — PDF will have no charts");
       }
+      // Same tile the on-screen logo uses (cached by URL) so the PDF chip
+      // matches the page exactly.
+      const plate = await getLogoPlate(project?.logo, project?.logoPlateMode);
       await downloadExport(
         dateFrom, dateTo, viewMode, projectId, groupBySkillset, "pdf",
         accent.displayName, accent.logoFilename, !entireDay, blobs,
+        plate.bg,
       );
     } finally {
       setExporting(null);
@@ -831,7 +829,7 @@ export default function ReportViewPage() {
             )}
             {project && (
               <ChartCardBrandStrip
-                scope={{ kind: "project", project: { name: project.name, logo: project.logo } }}
+                scope={{ kind: "project", project: { name: project.name, logo: project.logo, logoPlateMode: project.logoPlateMode } }}
                 accentColor={accent.color}
               />
             )}
@@ -899,7 +897,7 @@ export default function ReportViewPage() {
             )}
             {project && (
               <ChartCardBrandStrip
-                scope={{ kind: "project", project: { name: project.name, logo: project.logo } }}
+                scope={{ kind: "project", project: { name: project.name, logo: project.logo, logoPlateMode: project.logoPlateMode } }}
                 accentColor={accent.color}
               />
             )}

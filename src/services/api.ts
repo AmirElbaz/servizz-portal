@@ -218,13 +218,18 @@ export async function downloadAbandoned5sExport(
   projectName?: string,
   projectLogo?: string,
   workingHoursOnly = false,
-  chartImages?: Blob[]
+  chartImages?: Blob[],
+  // Resolved logo-plate background (see utils/logoPlate.ts) — the same tile
+  // the on-screen logo renders on, so the PDF chip matches. NOT the accent;
+  // chosen from the logo's brightness. PDF-only; Excel ignores it.
+  projectAccent?: string
 ): Promise<void> {
   const p = project ? `&project=${project}` : "";
   const pn = projectName ? `&projectName=${encodeURIComponent(projectName)}` : "";
   const pl = projectLogo ? `&projectLogo=${encodeURIComponent(projectLogo)}` : "";
+  const pa = projectAccent ? `&projectAccent=${encodeURIComponent(projectAccent)}` : "";
   const wh = workingHoursOnly ? `&workingHoursOnly=true` : "";
-  const url = `${BASE_URL}/AbandonedWithin5sReport/export?dateFrom=${dateFrom}&dateTo=${dateTo}&mode=${mode}${p}&groupBySkillset=${groupBySkillset}&format=${format}${pn}${pl}${wh}`;
+  const url = `${BASE_URL}/AbandonedWithin5sReport/export?dateFrom=${dateFrom}&dateTo=${dateTo}&mode=${mode}${p}&groupBySkillset=${groupBySkillset}&format=${format}${pn}${pl}${pa}${wh}`;
 
   const body = new FormData();
   if (format === "pdf" && chartImages && chartImages.length > 0) {
@@ -260,13 +265,18 @@ export async function downloadExport(
   // these. Backend embeds them between the cover page and the data table so
   // the PDF reflects exactly what the user sees on screen — single source of
   // truth for chart styling.
-  chartImages?: Blob[]
+  chartImages?: Blob[],
+  // Resolved logo-plate background (see utils/logoPlate.ts) — the same tile
+  // the on-screen logo renders on, so the PDF chip matches. NOT the accent;
+  // chosen from the logo's brightness. PDF-only; Excel ignores it.
+  projectAccent?: string
 ): Promise<void> {
   const p = project ? `&project=${project}` : "";
   const pn = projectName ? `&projectName=${encodeURIComponent(projectName)}` : "";
   const pl = projectLogo ? `&projectLogo=${encodeURIComponent(projectLogo)}` : "";
+  const pa = projectAccent ? `&projectAccent=${encodeURIComponent(projectAccent)}` : "";
   const wh = workingHoursOnly ? `&workingHoursOnly=true` : "";
-  const url = `${BASE_URL}/SkillsetReport/export?dateFrom=${dateFrom}&dateTo=${dateTo}&mode=${mode}${p}&groupBySkillset=${groupBySkillset}&format=${format}${pn}${pl}${wh}`;
+  const url = `${BASE_URL}/SkillsetReport/export?dateFrom=${dateFrom}&dateTo=${dateTo}&mode=${mode}${p}&groupBySkillset=${groupBySkillset}&format=${format}${pn}${pl}${pa}${wh}`;
 
   const body = new FormData();
   if (format === "pdf" && chartImages && chartImages.length > 0) {
