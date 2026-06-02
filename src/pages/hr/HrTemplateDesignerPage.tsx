@@ -21,7 +21,7 @@ import { CSS } from "@dnd-kit/utilities";
 import DashboardLayout from "../../components/layout/DashboardLayout";
 import Skeleton from "../../components/admin/Skeleton";
 import ConfirmModal from "../../components/ui/ConfirmModal";
-import { useAuth } from "../../services/auth";
+import { useAuth, roleAtLeast } from "../../services/auth";
 import {
   getHrTemplate,
   updateHrTemplate,
@@ -56,7 +56,8 @@ export default function HrTemplateDesignerPage() {
   const { deptCode, templateId } = useParams<{ deptCode: string; templateId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const isAdmin = !!user?.isAdmin;
+  // HR template design is a centrecom_user (staff) capability and above.
+  const isAdmin = roleAtLeast(user?.role, "centrecom_user");
   const tid = Number(templateId);
 
   // Design is admin-only (enforced by the backend too). Non-admins who

@@ -28,6 +28,7 @@ export type IvrComparison = "yoy1" | "yoy2" | "yoy3";
 export interface IvrMonthlyEntry {
   month: number; // 1-12
   offered: number | null;
+  answered: number | null;
   auto: number | null;
 }
 
@@ -37,12 +38,21 @@ export interface IvrDailyEntry {
   auto: number | null;
 }
 
+export interface IvrWeeklyEntry {
+  week: number; // ISO 8601 week number (1..53)
+  offered: number | null;
+  answered: number | null;
+  auto: number | null;
+}
+
 export interface IvrLaneData {
   code: IvrLaneCode;
   year: number;
   monthly: IvrMonthlyEntry[]; // always 12 entries Jan..Dec
   daily: IvrDailyEntry[];     // current month only
+  weekly: IvrWeeklyEntry[];   // populated only when granularity="week"
   totalOffered: number | null;
+  totalAnswered: number | null;
   totalAuto: number | null;
 }
 
@@ -52,7 +62,7 @@ export interface IvrTrendComparisonResponse {
   lanes: IvrLaneData[];
 }
 
-export type IvrGranularity = "month" | "year";
+export type IvrGranularity = "month" | "year" | "week";
 
 export interface FetchIvrTrendsParams {
   /** Project URL code; null/undefined means "all allowed projects". */
@@ -92,35 +102,72 @@ export function fetchIvrTrendComparison(
   return request(`/IvrTrends/comparison${query ? `?${query}` : ""}`);
 }
 
-// Triggers a browser download of the rendered report. The auth header is
-// attached the same way as the JSON fetcher so non-admin users get a
-// proper 403 if their policy grants are missing.
-export async function downloadIvrTrendExport(
-  params: FetchIvrTrendsParams & {
-    format: "excel" | "pdf";
-    projectName?: string;
-    projectLogo?: string;
-    // Resolved logo-plate background (utils/logoPlate.ts) — matches the
-    // on-screen tile. NOT the accent. PDF-only.
-    projectAccent?: string;
-  },
-): Promise<void> {
+// A comparison period: a year plus a from–to SPAN whose units are month
+// numbers (1-12) in monthly view or ISO week numbers in weekly view.
+export interface IvrRangeRef {
+  year: number;
+  from: number;
+  to: number;
+}
+
+export interface IvrExportParams {
+  format: "excel" | "pdf";
+  project?: string | null;
+  mode: "trend" | "comparison";
+  view: "monthly" | "weekly";
+  /** Trend-mode anchor year. */
+  year?: number;
+  /** Comparison-mode periods (each a from–to span in the current grain). */
+  rangeA?: IvrRangeRef;
+  rangeB?: IvrRangeRef;
+  projectName?: string;
+  projectLogo?: string;
+  // Resolved logo-plate background (utils/logoPlate.ts) — matches the
+  // on-screen tile. NOT the accent. PDF-only.
+  projectAccent?: string;
+  // Rendered chart-card PNG snapshots. PDF-only; the backend embeds them
+  // unmodified. Excel ignores them.
+  chartImages?: Blob[];
+}
+
+// Triggers a browser download of the rendered report. POSTs as multipart so
+// the PDF path can carry chart snapshots; the auth header is attached the
+// same way as the JSON fetcher so non-admin users get a proper 403 if their
+// policy grants are missing.
+export async function downloadIvrTrendExport(params: IvrExportParams): Promise<void> {
   const qs = new URLSearchParams();
   if (params.project) qs.set("project", params.project);
-  if (params.month != null) qs.set("month", params.month.toString());
+  qs.set("mode", params.mode);
+  qs.set("view", params.view);
   if (params.year != null) qs.set("year", params.year.toString());
-  if (params.comparisons && params.comparisons.length > 0) {
-    qs.set("comparisons", params.comparisons.join(","));
+  // Comparison is always a from–to span. aFromMonth/aToMonth carry unit
+  // numbers in the current grain (months monthly, ISO weeks weekly).
+  if (params.mode === "comparison") qs.set("compareMode", "range");
+  if (params.rangeA) {
+    qs.set("aYear", params.rangeA.year.toString());
+    qs.set("aFromMonth", params.rangeA.from.toString());
+    qs.set("aToMonth", params.rangeA.to.toString());
   }
-  if (params.granularity) qs.set("granularity", params.granularity);
+  if (params.rangeB) {
+    qs.set("bYear", params.rangeB.year.toString());
+    qs.set("bFromMonth", params.rangeB.from.toString());
+    qs.set("bToMonth", params.rangeB.to.toString());
+  }
   if (params.projectName) qs.set("projectName", params.projectName);
   if (params.projectLogo) qs.set("projectLogo", params.projectLogo);
   if (params.projectAccent) qs.set("projectAccent", params.projectAccent);
   qs.set("format", params.format);
 
+  const body = new FormData();
+  if (params.format === "pdf" && params.chartImages && params.chartImages.length > 0) {
+    params.chartImages.forEach((img, i) => body.append("chartImages", img, `chart-${i}.png`));
+  }
+
   const token = localStorage.getItem("token");
   const res = await fetch(`${BASE_URL}/IvrTrends/export?${qs.toString()}`, {
+    method: "POST",
     headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body,
   });
   if (!res.ok) throw new Error(`Export failed: ${res.status} ${res.statusText}`);
 

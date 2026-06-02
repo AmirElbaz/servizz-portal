@@ -1,42 +1,37 @@
-import { type FormEvent, useState, useRef } from "react";
+import { type FormEvent, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../services/auth";
 
-// PIN-code login is hidden until the backend feature ships. Flip
-// SHOW_PIN_TAB to true to re-enable the tab and the digit-entry form.
-const SHOW_PIN_TAB = false;
+// Two tabs: normal credentials (username/email + password — or the emailed
+// one-time password on the first login), and a 4-digit PIN that quick-unlocks
+// an inactivity-locked session while its token is still valid.
+const SHOW_PIN_TAB = true;
 
-type LoginMode = "credentials" | "bankcode";
+type LoginMode = "credentials" | "pincode";
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { login } = useAuth();
-  const [mode, setMode] = useState<LoginMode>("credentials");
+  const { login, pinLogin, locked, user } = useAuth();
+  // Default to the PIN tab when the session is inactivity-locked (a valid
+  // token + a known user are held); otherwise the normal credentials tab.
+  const [mode, setMode] = useState<LoginMode>(locked ? "pincode" : "credentials");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  const codeRefs = [
-    useRef<HTMLInputElement>(null),
-    useRef<HTMLInputElement>(null),
-    useRef<HTMLInputElement>(null),
-    useRef<HTMLInputElement>(null),
-  ];
-
-  function handleDigitInput(refs: React.RefObject<HTMLInputElement | null>[], index: number, value: string) {
-    if (value.length === 1 && index < 3) {
-      refs[index + 1].current?.focus();
-    }
-  }
-
-  function handleDigitKeyDown(refs: React.RefObject<HTMLInputElement | null>[], index: number, e: React.KeyboardEvent) {
-    if (e.key === "Backspace" && index > 0) {
-      const current = refs[index].current;
-      if (current && current.value === "") {
-        refs[index - 1].current?.focus();
-      }
+  function routeByStatus(u: { signupStatus?: string }) {
+    const status = u.signupStatus;
+    if (status && status !== "active") {
+      navigate(
+        status === "requested" ? "/complete-registration"
+        : status === "pending_approval" ? "/pending-approval"
+        : "/complete-signup",
+      );
+    } else {
+      navigate("/dashboard");
     }
   }
 
@@ -44,21 +39,23 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
     setLoading(true);
-
     try {
-      // Backend matches on username OR email, case-insensitive — send the
-      // raw input either way.
-      const loggedInUser = await login(username.trim(), password);
-      // Users mid-onboarding go to the signup-completion flow; everyone
-      // else lands on the dashboard. ProtectedRoute enforces the same
-      // rule as a backstop, but routing here avoids one extra navigation.
-      if (loggedInUser.signupStatus && loggedInUser.signupStatus !== "active") {
-        navigate("/complete-signup");
+      if (mode === "pincode") {
+        // Quick-unlock with the 4-digit PIN, riding the still-valid token.
+        routeByStatus(await pinLogin(pin.trim()));
       } else {
-        navigate("/dashboard");
+        // Username/email + password (or the emailed one-time password on the
+        // first login). Backend matches username OR email, case-insensitive.
+        routeByStatus(await login(username.trim(), password));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
+      // A failed/expired PIN attempt clears the token (forced full login) —
+      // drop the user back to the credentials tab.
+      if (mode === "pincode" && !localStorage.getItem("token")) {
+        setMode("credentials");
+        setPin("");
+      }
     } finally {
       setLoading(false);
     }
@@ -200,6 +197,7 @@ export default function LoginPage() {
                   {SHOW_PIN_TAB && (
                     <div className="grid grid-cols-2 gap-2 mb-7">
                       <button
+                        type="button"
                         onClick={() => setMode("credentials")}
                         className={`flex flex-col items-center gap-1.5 py-3.5 rounded-xl text-sm font-semibold transition-all ${
                           mode === "credentials"
@@ -213,17 +211,18 @@ export default function LoginPage() {
                         Username &amp; Password
                       </button>
                       <button
-                        onClick={() => setMode("bankcode")}
+                        type="button"
+                        onClick={() => setMode("pincode")}
                         className={`flex flex-col items-center gap-1.5 py-3.5 rounded-xl text-sm font-semibold transition-all ${
-                          mode === "bankcode"
+                          mode === "pincode"
                             ? "bg-primary/8 text-primary border-2 border-primary/20"
                             : "bg-surface-container-high/40 text-on-surface-variant/50 border-2 border-transparent hover:bg-surface-container-high/70"
                         }`}
                       >
-                        <span className="material-symbols-outlined text-[22px]" style={mode === "bankcode" ? { fontVariationSettings: "'FILL' 1" } : undefined}>
+                        <span className="material-symbols-outlined text-[22px]" style={mode === "pincode" ? { fontVariationSettings: "'FILL' 1" } : undefined}>
                           pin
                         </span>
-                         PIN Code
+                        PIN
                       </button>
                     </div>
                   )}
@@ -300,30 +299,59 @@ export default function LoginPage() {
                       </div>
                     ) : (
                       <div className="space-y-5">
-                        {/* 4-Digit PIN Code */}
-                        <div className="space-y-2">
-                          <label className="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/60 block">
-                            4-Digit PIN Code
-                          </label>
-                          <p className="text-[11px] text-on-surface-variant/40 px-1 flex items-center gap-1.5 mb-3">
-                            <span className="material-symbols-outlined text-[13px]">info</span>
-                            Enter the 4-digit PIN code provided by your bank
-                          </p>
-                          <div className="flex gap-4 justify-center">
-                            {codeRefs.map((ref, i) => (
+                        {locked && user ? (
+                          <div className="space-y-2">
+                            <label className="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/60 block">
+                              Quick unlock
+                            </label>
+                            <p className="text-[11px] text-on-surface-variant/40 px-1 flex items-start gap-1.5">
+                              <span className="material-symbols-outlined text-[13px] mt-0.5">lock_open</span>
+                              <span>
+                                Welcome back, {user.firstName || user.fullName || user.username}. Enter your
+                                4-digit PIN to resume your session.
+                              </span>
+                            </p>
+                            <div className="relative group">
+                              <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/30 group-focus-within:text-primary transition-colors text-[20px]">
+                                pin
+                              </span>
                               <input
-                                key={i}
-                                ref={ref}
-                                className="w-16 h-16 text-center text-2xl font-bold bg-surface-container-high/60 rounded-xl border border-on-surface-variant/8 text-primary placeholder:text-on-surface-variant/20 focus:outline-none focus:border-primary/30 focus:bg-white focus:shadow-[0_0_20px_rgba(46,178,255,0.08)] transition-all"
-                                maxLength={1}
-                                placeholder="•"
+                                className="w-full pl-12 pr-4 py-3.5 bg-surface-container-high/60 rounded-xl border border-on-surface-variant/8 text-on-surface text-center text-2xl font-bold tracking-[0.5em] placeholder:tracking-normal placeholder:text-sm placeholder:font-medium placeholder:text-on-surface-variant/25 focus:outline-none focus:border-primary/30 focus:bg-white focus:shadow-[0_0_20px_rgba(46,178,255,0.08)] transition-all"
+                                placeholder="Enter PIN"
                                 type="password"
-                                onChange={(e) => handleDigitInput(codeRefs, i, e.target.value)}
-                                onKeyDown={(e) => handleDigitKeyDown(codeRefs, i, e)}
+                                inputMode="numeric"
+                                autoComplete="one-time-code"
+                                maxLength={4}
+                                autoFocus
+                                value={pin}
+                                onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
                               />
-                            ))}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => { setMode("credentials"); setError(""); }}
+                              className="text-[11px] font-semibold text-primary hover:text-primary-dim transition-colors"
+                            >
+                              Use password instead
+                            </button>
                           </div>
-                        </div>
+                        ) : (
+                          <div className="rounded-xl bg-surface-container-high/40 border border-on-surface-variant/8 p-5 text-center">
+                            <span className="material-symbols-outlined text-[32px] text-on-surface-variant/40 mb-2 block">lock</span>
+                            <p className="text-sm font-semibold text-on-surface mb-1">PIN unlock isn't available</p>
+                            <p className="text-[12px] text-on-surface-variant/55">
+                              The 4-digit PIN only resumes an active session. Sign in with your username and
+                              password first.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => { setMode("credentials"); setError(""); }}
+                              className="mt-3 text-[12px] font-bold text-primary hover:text-primary-dim transition-colors"
+                            >
+                              Go to sign in →
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )}
                     </div>
@@ -332,9 +360,13 @@ export default function LoginPage() {
                     <button
                       className="btn-brand w-full py-4 rounded-xl font-bold text-sm tracking-wide flex items-center justify-center gap-2 group mt-2 disabled:opacity-60"
                       type="submit"
-                      disabled={loading}
+                      disabled={loading || (mode === "pincode" && (!locked || pin.length !== 4))}
                     >
-                      <span>{loading ? "Signing in..." : "Secure Login"}</span>
+                      <span>
+                        {loading
+                          ? (mode === "pincode" ? "Unlocking..." : "Signing in...")
+                          : (mode === "pincode" ? "Unlock" : "Secure Login")}
+                      </span>
                       {!loading && (
                         <span className="material-symbols-outlined text-lg transition-transform group-hover:translate-x-1">
                           arrow_forward
@@ -342,6 +374,15 @@ export default function LoginPage() {
                       )}
                     </button>
                   </form>
+
+                  <div className="mt-6 pt-5 border-t border-on-surface-variant/8 text-center">
+                    <p className="text-xs text-on-surface-variant/55">
+                      New here?{" "}
+                      <Link to="/request-access" className="font-semibold text-primary hover:text-primary-dim transition-colors">
+                        Request access
+                      </Link>
+                    </p>
+                  </div>
 
                 </div>
               </div>

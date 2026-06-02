@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "react-router-dom";
+import ReportProjectSwitcher from "../components/reports/ReportProjectSwitcher";
 import { toBlob as domToBlob } from "html-to-image";
 import Paginator from "../components/ui/Paginator";
 import {
@@ -73,7 +74,11 @@ export default function AbandonedWithin5sReportPage() {
   }>();
   const reportCode = "abandoned-within-5s";
   const departmentCode = deptCode;
-  const projectId = projectCode;
+
+  // In-page project selection for the dept-direct view (no projectCode in the
+  // URL); "all" = no project filter. URL project wins when present.
+  const [selectedProject, setSelectedProject] = useState<string>("all");
+  const projectId = projectCode ?? (selectedProject === "all" ? undefined : selectedProject);
 
   const [project, setProject] = useState<Project | null>(null);
   const [dept, setDept] = useState<CatalogDepartmentSummary | null>(null);
@@ -143,7 +148,8 @@ export default function AbandonedWithin5sReportPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("daily");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
-  const [loading, setLoading] = useState(false);
+  // Start loading so the first paint is the skeleton, not a full-column flash.
+  const [loading, setLoading] = useState(true);
   const [groupBySkillset, setGroupBySkillset] = useState(true);
   // Entire Day — ON (default) counts every record across the whole day.
   // OFF restricts to the project's configured shift window. The backend
@@ -267,7 +273,7 @@ export default function AbandonedWithin5sReportPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [dateFrom, dateTo, viewMode, groupBySkillset, entireDay]);
+  }, [dateFrom, dateTo, viewMode, groupBySkillset, entireDay, projectId]);
 
   if (catalogLoading) {
     return (
@@ -388,6 +394,18 @@ export default function AbandonedWithin5sReportPage() {
         {/* ── Filters ── */}
         <div className="mb-8 prism-surface rounded-2xl p-5 space-y-4">
           <div className="flex flex-wrap items-end gap-3 sm:gap-4">
+            {/* Project switcher when opened without a project (e.g. Report
+                Index / department-direct); hidden once project-scoped. */}
+            {!projectCode && departmentCode && (
+              <ReportProjectSwitcher
+                deptCode={departmentCode}
+                value={selectedProject}
+                onChange={(v, proj) => {
+                  setSelectedProject(v);
+                  setProject(proj ? adaptProject(proj) : null);
+                }}
+              />
+            )}
             <div className="flex-1 min-w-[110px]">
               <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 block mb-1.5">
                 From
@@ -423,7 +441,7 @@ export default function AbandonedWithin5sReportPage() {
                   <button
                     key={opt}
                     onClick={() => setViewMode(opt)}
-                    className={`flex-1 py-2 sm:py-2.5 px-1.5 sm:px-3 text-[10px] sm:text-xs font-semibold capitalize transition-colors ${
+                    className={`flex-1 h-[38px] px-1.5 sm:px-3 text-[10px] sm:text-xs font-semibold capitalize transition-colors ${
                       viewMode === opt
                         ? "bg-accent text-white"
                         : "bg-surface-container-high/50 text-on-surface-variant hover:bg-surface-container-high"
@@ -590,6 +608,19 @@ export default function AbandonedWithin5sReportPage() {
               </span>
             </div>
             <div className="overflow-x-auto">
+              {/* Render the table only once rows are in — avoids flashing the
+                  full column set before the policy-allowed subset settles. */}
+              {loading ? (
+                <div className="p-6 space-y-3" aria-hidden="true">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="h-9 rounded-lg bg-surface-container-high/50 animate-pulse" />
+                  ))}
+                </div>
+              ) : rows.length === 0 ? (
+                <div className="px-4 py-16 text-center text-on-surface-variant/50 text-sm">
+                  No data found for the selected date range.
+                </div>
+              ) : (
               <table
                 className="tbl
                   [&[data-cols='1']_.tbl-td-num]:py-4 [&[data-cols='1']_.tbl-td-num]:text-[14.5px]
@@ -628,49 +659,25 @@ export default function AbandonedWithin5sReportPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {loading ? (
-                    <tr>
-                      <td
-                        colSpan={activeColumns.length}
-                        className="px-4 py-12 text-center text-on-surface-variant/50 text-sm"
-                      >
-                        Loading...
-                      </td>
+                  {rows.map((row, i) => (
+                    <tr key={i} className="tbl-tr">
+                      {activeColumns.map((col) => {
+                        const val = row[col.key];
+                        const isNumber = col.key === "AbandonedCalls";
+                        const cellClass = isNumber ? "tbl-td-num" : "tbl-td-strong";
+                        const display =
+                          val == null ? "" : isNumber ? fmt.int(Number(val)) : String(val);
+                        return (
+                          <td key={col.key} className={cellClass}>
+                            {display}
+                          </td>
+                        );
+                      })}
                     </tr>
-                  ) : (
-                    rows.map((row, i) => (
-                      <tr key={i} className="tbl-tr">
-                        {activeColumns.map((col) => {
-                          const val = row[col.key];
-                          const isNumber = col.key === "AbandonedCalls";
-                          const cellClass = isNumber ? "tbl-td-num" : "tbl-td-strong";
-                          const display =
-                            val == null
-                              ? ""
-                              : isNumber
-                              ? fmt.int(Number(val))
-                              : String(val);
-                          return (
-                            <td key={col.key} className={cellClass}>
-                              {display}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))
-                  )}
-                  {!loading && rows.length === 0 && (
-                    <tr>
-                      <td
-                        colSpan={activeColumns.length}
-                        className="px-4 py-12 text-center text-on-surface-variant/50 text-sm"
-                      >
-                        No data found for the selected date range.
-                      </td>
-                    </tr>
-                  )}
+                  ))}
                 </tbody>
               </table>
+              )}
             </div>
             <div className="px-6 py-4 border-t border-on-surface-variant/6">
               <Paginator

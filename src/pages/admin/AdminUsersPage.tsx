@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useAuth } from "../../services/auth";
+import { useAuth, roleAtLeast, type AccessRole } from "../../services/auth";
 import AdminLayout from "../../components/admin/AdminLayout";
 import AdminPageHeader from "../../components/admin/AdminPageHeader";
 import Modal from "../../components/admin/Modal";
@@ -10,7 +10,7 @@ import Skeleton, { SkeletonTableRow } from "../../components/admin/Skeleton";
 import Paginator from "../../components/ui/Paginator";
 import {
   listUsers,
-  setUserAdmin,
+  setUserRole,
   setUserPolicies,
   listPolicies,
   inviteUser,
@@ -37,6 +37,31 @@ interface IssuedCredential {
 // Username validation mirrors the backend regex exactly (CLAUDE.md says
 // keep server as source of truth, but failing fast client-side is good UX).
 const USERNAME_RE = /^[A-Za-z0-9._-]{3,64}$/;
+
+// Access tiers shown in the role control. Labels are display-only; the values
+// are the canonical AccessRole strings the backend stores + validates.
+const ROLE_LABELS: Record<string, string> = {
+  client: "Client",
+  centrecom_user: "Centrecom user",
+  admin: "Admin",
+  super_admin: "Super admin",
+};
+const ROLE_OPTIONS = ["client", "centrecom_user", "admin", "super_admin"] as const;
+
+// Read-only role badge tones — strongest for super_admin, fading to muted for
+// client, so access level is scannable down the column.
+const ROLE_TONES: Record<string, string> = {
+  super_admin:    "bg-primary/15 text-primary border border-primary/30",
+  admin:          "bg-primary/8 text-primary/90 border border-primary/20",
+  centrecom_user: "bg-surface-container-high text-on-surface-variant border border-on-surface-variant/15",
+  client:         "bg-surface-container-high text-on-surface-variant/55 border border-on-surface-variant/10",
+};
+
+// Normalize a stored role string (incl. legacy "user" / null) to one of the four.
+function normRole(role: string | null | undefined): string {
+  const r = (role ?? "").toLowerCase();
+  return r in ROLE_LABELS ? r : "client";
+}
 
 const BATCH_MAX_ROWS = 100;
 
@@ -118,17 +143,24 @@ export default function AdminUsersPage() {
   const [pageSize, setPageSize] = useState(15);
   const [search, setSearch] = useState("");
 
-  const adminCount = useMemo(
-    () => users.filter((u) => u.isAdmin).length,
+  // Only a super admin may assign roles; everyone else sees them read-only.
+  const canAssignRoles = roleAtLeast(currentUser?.role, "super_admin");
+
+  const superAdminCount = useMemo(
+    () => users.filter((u) => normRole(u.role) === "super_admin").length,
     [users]
   );
 
-  function toggleDisabledReason(u: AdminUser): string | null {
-    if (currentUser && u.id === currentUser.id) {
-      return "You cannot remove your own admin access. Ask another administrator to do it for you.";
-    }
-    if (u.isAdmin && adminCount === 1) {
-      return "At least one administrator must remain. Promote another user to admin first.";
+  // Why a given role change is blocked (mirrors the server's lock-out guards:
+  // a super_admin can't drop their own, and the last super_admin must remain).
+  function roleChangeReason(u: AdminUser, newRole: string): string | null {
+    if (normRole(u.role) === newRole) return null;
+    const demotingSuper = normRole(u.role) === "super_admin" && newRole !== "super_admin";
+    if (demotingSuper) {
+      if (currentUser && u.id === currentUser.id)
+        return "You cannot remove your own super-admin access. Ask another super admin to do it for you.";
+      if (superAdminCount === 1)
+        return "At least one super admin must remain. Promote another user to super admin first.";
     }
     return null;
   }
@@ -303,18 +335,59 @@ export default function AdminUsersPage() {
     }
   }
 
-  // ── Existing actions ────────────────────────────────────────────────
-  async function toggleAdmin(user: AdminUser) {
-    if (toggleDisabledReason(user)) return;
+  // ── Role assignment (super_admin only) ──────────────────────────────
+  async function handleRoleChange(user: AdminUser, newRole: string) {
+    const reason = roleChangeReason(user, newRole);
+    if (reason) { setActionError(reason); return; }
+    if (normRole(user.role) === newRole) return;
     try {
-      await setUserAdmin(user.id, !user.isAdmin);
+      await setUserRole(user.id, newRole as AccessRole);
       setUsers((prev) =>
-        prev.map((u) => (u.id === user.id ? { ...u, isAdmin: !u.isAdmin } : u))
+        prev.map((u) =>
+          u.id === user.id
+            ? { ...u, role: newRole, isAdmin: newRole === "admin" || newRole === "super_admin" }
+            : u
+        )
       );
       setActionError(null);
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : "Failed to update user");
+      setActionError(e instanceof Error ? e.message : "Failed to update role");
     }
+  }
+
+  // Role control used in both the desktop table and the mobile cards: an
+  // editable dropdown for super admins, a read-only badge for everyone else.
+  function renderRoleControl(u: AdminUser) {
+    const current = normRole(u.role);
+    if (!canAssignRoles) {
+      return (
+        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold ${ROLE_TONES[current]}`}>
+          {ROLE_LABELS[current]}
+        </span>
+      );
+    }
+    // When this row is protected by a lock-out rule (your own super-admin /
+    // the last super-admin), surface *why* on hover instead of only after a
+    // failed attempt — the blocked <option>s alone give no explanation.
+    const lockReason = current === "super_admin" ? roleChangeReason(u, "admin") : null;
+    return (
+      <select
+        value={current}
+        onChange={(e) => handleRoleChange(u, e.target.value)}
+        title={lockReason ?? undefined}
+        className="w-full max-w-full px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-surface-container-high border border-on-surface-variant/15 text-on-surface focus:outline-none focus:border-accent"
+      >
+        {ROLE_OPTIONS.map((r) => {
+          // Disable transitions blocked by the lock-out rules (demoting your
+          // own super-admin / the last super-admin) so they can't be picked —
+          // matching the documented admin-toggle pattern.
+          const blocked = r !== normRole(u.role) && roleChangeReason(u, r) != null;
+          return (
+            <option key={r} value={r} disabled={blocked}>{ROLE_LABELS[r]}</option>
+          );
+        })}
+      </select>
+    );
   }
 
   function openPolicyEditor(user: AdminUser) {
@@ -357,7 +430,7 @@ export default function AdminUsersPage() {
             <button
               type="button"
               onClick={openSingleInvite}
-              className="inline-flex items-center gap-2 bg-gradient-to-r from-primary to-primary-dim text-white px-4 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-primary/25 hover:opacity-95 transition-opacity"
+              className="inline-flex items-center gap-2 btn-brand px-4 py-2.5 rounded-xl font-bold text-sm"
             >
               <span className="material-symbols-outlined text-[18px]">person_add</span>
               Add user
@@ -462,17 +535,16 @@ export default function AdminUsersPage() {
                 <thead className="bg-surface-container-low/60">
                   <tr className="text-left text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/70">
                     <th className="px-6 py-3 w-[12%]">Username</th>
-                    <th className="px-6 py-3 w-[14%]">Full Name</th>
-                    <th className="px-6 py-3 w-[18%]">Email</th>
-                    <th className="px-6 py-3 w-[12%]">Status</th>
-                    <th className="px-6 py-3 w-[10%]">Admin</th>
-                    <th className="px-6 py-3 w-[16%]">Policies</th>
-                    <th className="px-6 py-3 w-[18%] text-right">Actions</th>
+                    <th className="px-6 py-3 w-[12%]">Full Name</th>
+                    <th className="px-6 py-3 w-[16%]">Email</th>
+                    <th className="px-6 py-3 w-[10%]">Status</th>
+                    <th className="px-6 py-3 w-[16%]">Role</th>
+                    <th className="px-6 py-3 w-[14%]">Policies</th>
+                    <th className="px-6 py-3 w-[20%] text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-on-surface-variant/8">
                   {pagedUsers.map((u) => {
-                    const disabledReason = toggleDisabledReason(u);
                     const isSelf = currentUser?.id === u.id;
                     const chip = statusChipProps(u.signupStatus);
                     const isOnboarding = u.signupStatus !== "active";
@@ -514,23 +586,7 @@ export default function AdminUsersPage() {
                           )}
                         </td>
                         <td className="px-6 py-4">
-                          <button
-                            onClick={() => toggleAdmin(u)}
-                            disabled={!!disabledReason}
-                            title={disabledReason ?? undefined}
-                            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold transition-all ${
-                              disabledReason ? "opacity-50 cursor-not-allowed" : ""
-                            } ${
-                              u.isAdmin
-                                ? "bg-primary/10 text-primary border border-primary/20"
-                                : "bg-surface-container-high text-on-surface-variant/70 border border-on-surface-variant/10 hover:bg-surface-container-highest"
-                            }`}
-                          >
-                            <span className="material-symbols-outlined text-[14px]">
-                              {u.isAdmin ? "check_circle" : "radio_button_unchecked"}
-                            </span>
-                            {u.isAdmin ? "Admin" : "Standard"}
-                          </button>
+                          {renderRoleControl(u)}
                         </td>
                         <td className="px-6 py-4">
                           {u.policies.length === 0 ? (
@@ -553,8 +609,8 @@ export default function AdminUsersPage() {
                             </div>
                           )}
                         </td>
-                        <td className="px-6 py-4 text-right">
-                          <div className="inline-flex items-center gap-1">
+                        <td className="px-6 py-4">
+                          <div className="flex flex-wrap items-center justify-end gap-1">
                             <button
                               onClick={() => openPolicyEditor(u)}
                               className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-primary bg-primary/8 hover:bg-primary/15 transition-colors"
@@ -593,7 +649,6 @@ export default function AdminUsersPage() {
             {/* ── Mobile cards ── */}
             <ul className="md:hidden divide-y divide-on-surface-variant/8">
               {pagedUsers.map((u) => {
-                const disabledReason = toggleDisabledReason(u);
                 const isSelf = currentUser?.id === u.id;
                 const chip = statusChipProps(u.signupStatus);
                 const isOnboarding = u.signupStatus !== "active";
@@ -628,23 +683,7 @@ export default function AdminUsersPage() {
                           </span>
                         )}
                       </div>
-                      <button
-                        onClick={() => toggleAdmin(u)}
-                        disabled={!!disabledReason}
-                        title={disabledReason ?? undefined}
-                        className={`shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold transition-all ${
-                          disabledReason ? "opacity-50 cursor-not-allowed" : ""
-                        } ${
-                          u.isAdmin
-                            ? "bg-primary/10 text-primary border border-primary/20"
-                            : "bg-surface-container-high text-on-surface-variant/70 border border-on-surface-variant/10"
-                        }`}
-                      >
-                        <span className="material-symbols-outlined text-[12px]">
-                          {u.isAdmin ? "check_circle" : "radio_button_unchecked"}
-                        </span>
-                        {u.isAdmin ? "Admin" : "Standard"}
-                      </button>
+                      <div className="shrink-0 w-36">{renderRoleControl(u)}</div>
                     </div>
                     {u.policies.length > 0 && (
                       <div className="flex flex-wrap gap-1 mb-3">

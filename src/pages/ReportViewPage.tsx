@@ -32,6 +32,7 @@ import ReportPageHeader, {
   BreadcrumbLink,
 } from "../components/reports/ReportPageHeader";
 import ChartCardBrandStrip from "../components/reports/ChartCardBrandStrip";
+import ReportProjectSwitcher from "../components/reports/ReportProjectSwitcher";
 import { getLogoPlate } from "../utils/logoPlate";
 import {
   fetchRawData,
@@ -179,10 +180,15 @@ export default function ReportViewPage() {
   }>();
   const departmentCode = deptCode;
 
-  // For the existing data-fetching code that still expects "projectId".
-  // projectId stays undefined for direct reports — report endpoints
-  // interpret that as "no project filter".
-  const projectId = projectCode;
+  // In-page project selection for the dept-direct view (no projectCode in the
+  // URL). "all" = no project filter (report endpoints treat undefined as all
+  // allowed). When the URL already pins a project, projectCode wins and the
+  // switcher is hidden.
+  const [selectedProject, setSelectedProject] = useState<string>("all");
+
+  // projectId is what the data-fetch + export code consumes. URL project wins;
+  // otherwise it follows the in-page switcher ("all" → undefined = all allowed).
+  const projectId = projectCode ?? (selectedProject === "all" ? undefined : selectedProject);
 
   const [project, setProject] = useState<Project | null>(null);
   const [dept, setDept] = useState<CatalogDepartmentSummary | null>(null);
@@ -255,13 +261,18 @@ export default function ReportViewPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("hourly");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
-  const [loading, setLoading] = useState(false);
+  // Start in the loading state so the first paint is the skeleton (not a brief
+  // "no data" / full-column flash) before the initial fetch kicks in.
+  const [loading, setLoading] = useState(true);
   const [groupBySkillset, setGroupBySkillset] = useState(true);
-  // Entire Day toggle: ON (default) = show every row, regardless of the
-  // project's working-hours window. OFF = restrict to working hours only.
-  // The backend API still takes a `workingHoursOnly` boolean; we send the
-  // negation at every call site so the UI semantics stay readable.
-  const [entireDay, setEntireDay] = useState(true);
+  // Non-peak hours toggle: OFF (default) = show only rows INSIDE the project's
+  // working window (operating / peak hours). ON = show only rows OUTSIDE it
+  // (non-peak). There is no "entire day" view on this page anymore. The backend
+  // takes an `hours` string ("working" | "nonpeak"); we map the toggle once
+  // here and pass `hours` at every call site. (The backend still supports
+  // "all"/entire-day for the dashboard and other non-report callers.)
+  const [nonPeak, setNonPeak] = useState(false);
+  const hours = nonPeak ? "nonpeak" : "working";
 
   // Refs on the two chart cards — captured to PNG via html2canvas on PDF
   // export so the PDF embeds exactly the chart the user sees. Kept null
@@ -282,7 +293,7 @@ export default function ReportViewPage() {
     try {
       await downloadExport(
         dateFrom, dateTo, viewMode, projectId, groupBySkillset, "excel",
-        accent.displayName, accent.logoFilename, !entireDay,
+        accent.displayName, accent.logoFilename, hours,
       );
     } finally {
       setExporting(null);
@@ -325,7 +336,7 @@ export default function ReportViewPage() {
       const plate = await getLogoPlate(project?.logo, project?.logoPlateMode);
       await downloadExport(
         dateFrom, dateTo, viewMode, projectId, groupBySkillset, "pdf",
-        accent.displayName, accent.logoFilename, !entireDay, blobs,
+        accent.displayName, accent.logoFilename, hours, blobs,
         plate.bg,
       );
     } finally {
@@ -364,7 +375,7 @@ export default function ReportViewPage() {
       setLoading(true);
       try {
         if (viewMode === "raw") {
-          const res = await fetchRawData(dateFrom, dateTo, currentPage, pageSize, projectId, !entireDay);
+          const res = await fetchRawData(dateFrom, dateTo, currentPage, pageSize, projectId, hours);
           if (!cancelled) {
             setRawRows(res.rows);
             setTotalItems(res.total);
@@ -376,7 +387,7 @@ export default function ReportViewPage() {
           }
         } else {
           const mode: GroupMode = viewMode as GroupMode;
-          const res = await fetchGroupedData(dateFrom, dateTo, mode, currentPage, pageSize, projectId, groupBySkillset, !entireDay);
+          const res = await fetchGroupedData(dateFrom, dateTo, mode, currentPage, pageSize, projectId, groupBySkillset, hours);
           if (!cancelled) {
             setGroupedRows(res.rows);
             setTotalItems(res.total);
@@ -396,7 +407,7 @@ export default function ReportViewPage() {
     }
     load();
     return () => { cancelled = true; };
-  }, [dateFrom, dateTo, viewMode, currentPage, pageSize, projectId, groupBySkillset, entireDay]);
+  }, [dateFrom, dateTo, viewMode, currentPage, pageSize, projectId, groupBySkillset, nonPeak]);
 
   // Fetch chart + summary (re-fetch when view mode / interval changes too).
   // Promise.all is all-or-nothing — if chart throws, summary doesn't update
@@ -407,8 +418,8 @@ export default function ReportViewPage() {
     async function load() {
       try {
         const [chart, sum] = await Promise.all([
-          fetchChartData(dateFrom, dateTo, projectId, chartMode, !entireDay),
-          fetchSummary(dateFrom, dateTo, projectId, !entireDay),
+          fetchChartData(dateFrom, dateTo, projectId, chartMode, hours),
+          fetchSummary(dateFrom, dateTo, projectId, hours),
         ]);
         if (!cancelled) {
           setChartData(chart);
@@ -424,12 +435,12 @@ export default function ReportViewPage() {
     }
     load();
     return () => { cancelled = true; };
-  }, [dateFrom, dateTo, projectId, viewMode, entireDay]);
+  }, [dateFrom, dateTo, projectId, viewMode, nonPeak]);
 
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [dateFrom, dateTo, viewMode, groupBySkillset, entireDay]);
+  }, [dateFrom, dateTo, viewMode, groupBySkillset, nonPeak, projectId]);
 
   if (catalogLoading) {
     return (
@@ -591,8 +602,23 @@ export default function ReportViewPage() {
 
         {/* ── Filters ── */}
         <div className="mb-8 prism-surface rounded-2xl p-5 space-y-4">
-          {/* Row 1: Date range + View mode */}
+          {/* Row 1: Project (dept-direct only) + Date range + View mode */}
           <div className="flex flex-wrap items-end gap-3 sm:gap-4">
+            {/* Opened without a project (e.g. from the Report Index): let the
+                user scope to a project — or stay on all allowed. Hidden when
+                already project-scoped (the project is fixed by the URL). */}
+            {!projectCode && departmentCode && (
+              <ReportProjectSwitcher
+                deptCode={departmentCode}
+                value={selectedProject}
+                onChange={(v, proj) => {
+                  setSelectedProject(v);
+                  // Drive identity (header, accent, chart strip, export logo)
+                  // from the chosen project — null falls back to dept identity.
+                  setProject(proj ? adaptProject(proj) : null);
+                }}
+              />
+            )}
             <div className="flex-1 min-w-[110px]">
               <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 block mb-1.5">
                 From
@@ -628,7 +654,7 @@ export default function ReportViewPage() {
                   <button
                     key={opt}
                     onClick={() => setViewMode(opt)}
-                    className={`flex-1 py-2 sm:py-2.5 px-1.5 sm:px-3 text-[10px] sm:text-xs font-semibold capitalize transition-colors ${
+                    className={`flex-1 h-[38px] px-1.5 sm:px-3 text-[10px] sm:text-xs font-semibold capitalize transition-colors ${
                       viewMode === opt
                         ? "bg-accent text-white"
                         : "bg-surface-container-high/50 text-on-surface-variant hover:bg-surface-container-high"
@@ -643,24 +669,36 @@ export default function ReportViewPage() {
 
           {/* Row 2: Toggles + record count */}
           <div className="flex items-center gap-6 pt-2 border-t border-on-surface-variant/6">
-            {/* Toggle: Entire Day — ON (default) shows every row regardless of
-                the project's working window. OFF restricts every metric to
-                rows inside the project's defined working hours (normal /
-                weekend / public-holiday). */}
+            {/* Hours — mutually exclusive: "Operating hours" keeps only rows
+                inside each project's working window (normal / weekend /
+                public-holiday); "Non-peak" flips to the rows OUTSIDE it. A
+                segmented control (not a toggle) so the either/or is legible.
+                There is no "entire day" view here anymore. */}
             <div className="flex items-center gap-2.5">
-              <label
-                className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 whitespace-nowrap cursor-help"
-                title="ON shows every call across the whole day. Turn OFF to restrict to each project's defined operating hours (normal / weekend / public holiday)."
-              >
-                Entire Day
+              <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 whitespace-nowrap">
+                Hours
               </label>
-              <button
-                onClick={() => setEntireDay(!entireDay)}
-                className={`relative w-10 h-[22px] rounded-full transition-colors ${entireDay ? "" : "bg-on-surface-variant/20"}`}
-                style={entireDay ? { backgroundColor: accent.color } : undefined}
+              <div
+                className="flex rounded-xl overflow-hidden border border-on-surface-variant/8"
+                title="Operating hours = inside each project's working window (normal / weekend / public holiday). Non-peak = calls outside that window."
               >
-                <span className={`absolute top-[2px] left-[2px] w-[18px] h-[18px] bg-white rounded-full shadow transition-transform ${entireDay ? "translate-x-[18px]" : ""}`} />
-              </button>
+                {([["operating", "Operating hours"], ["nonpeak", "Non-peak"]] as const).map(([val, label]) => {
+                  const active = (val === "nonpeak") === nonPeak;
+                  return (
+                    <button
+                      key={val}
+                      onClick={() => setNonPeak(val === "nonpeak")}
+                      className={`h-[38px] px-3.5 text-[12px] font-semibold transition-colors ${
+                        active
+                          ? "bg-accent text-white"
+                          : "bg-surface-container-high/50 text-on-surface-variant hover:bg-surface-container-high"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             <div className="w-px h-5 bg-on-surface-variant/10" />
@@ -929,6 +967,23 @@ export default function ReportViewPage() {
               Adaptive density (font + padding) keys off `data-cols` for
               the 1–4 column cases. */}
           <div className="overflow-x-auto">
+            {/* Don't render the table (and its headers) until the data is in —
+                otherwise the full canonical column set flashes before the
+                policy-allowed subset settles, which looks like we're hiding
+                data. Loading → neutral skeleton; empty → message; only with
+                rows do we render real headers (which are already the allowed
+                columns from the response). */}
+            {loading ? (
+              <div className="p-6 space-y-3" aria-hidden="true">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="h-9 rounded-lg bg-surface-container-high/50 animate-pulse" />
+                ))}
+              </div>
+            ) : (isRaw ? rawRows.length === 0 : groupedRows.length === 0) ? (
+              <div className="px-4 py-16 text-center text-on-surface-variant/50 text-sm">
+                No data found for the selected date range.
+              </div>
+            ) : (
             <table
               className="tbl
                 [&[data-cols='1']_.tbl-td-num]:py-4 [&[data-cols='1']_.tbl-td-num]:text-[14.5px]
@@ -977,16 +1032,7 @@ export default function ReportViewPage() {
                 </tr>
               </thead>
               <tbody>
-                {loading ? (
-                  <tr>
-                    <td
-                      colSpan={isRaw ? rawColumns.length || 1 : activeGroupedColumns.length}
-                      className="px-4 py-12 text-center text-on-surface-variant/50 text-sm"
-                    >
-                      Loading...
-                    </td>
-                  </tr>
-                ) : isRaw ? (
+                {isRaw ? (
                   rawRows.map((row, i) => (
                     <tr key={i} className="tbl-tr">
                       {rawColumns.map((col) => {
@@ -1040,18 +1086,9 @@ export default function ReportViewPage() {
                     </tr>
                   ))
                 )}
-                {!loading && rawRows.length === 0 && groupedRows.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={isRaw ? rawColumns.length || 1 : activeGroupedColumns.length}
-                      className="px-4 py-12 text-center text-on-surface-variant/50 text-sm"
-                    >
-                      No data found for the selected date range.
-                    </td>
-                  </tr>
-                )}
               </tbody>
             </table>
+            )}
           </div>
           <div className="px-6 py-4 border-t border-on-surface-variant/6">
             <Paginator

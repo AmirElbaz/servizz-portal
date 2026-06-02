@@ -19,6 +19,7 @@ import {
   type UploadedFileSummary,
 } from "../services/modules";
 import { Can, usePermissions } from "../services/permissions";
+import { useAuth, roleAtLeast } from "../services/auth";
 import { fmt } from "../utils/fmt";
 
 const ACCENT = "#2EB2FF";
@@ -51,6 +52,11 @@ export default function ModuleFileUploadsPage() {
   const effectiveModuleCode = moduleCode ?? "bdf-reports";
   const prefix = prefixFor(effectiveModuleCode);
   const { loaded: permsLoaded } = usePermissions();
+  const { user } = useAuth();
+  // Upload / replace / delete are Centrecom-staff capabilities — the backend
+  // enforces it ([MinRole]); hide the controls from clients here too so they
+  // never see a button that would 403.
+  const canModify = roleAtLeast(user?.role, "centrecom_user");
 
   const [dept, setDept] = useState<CatalogDepartmentSummary | null>(null);
   const [module, setModule] = useState<ModuleSummary | null>(null);
@@ -310,7 +316,7 @@ export default function ModuleFileUploadsPage() {
                 <p className="text-on-surface-variant/60 text-sm mt-1 max-w-2xl">{module.description}</p>
               )}
             </div>
-            <Can permission={`${prefix}:upload`} resource={[groupScope ?? moduleScope, moduleScope]}>
+            {canModify && <Can permission={`${prefix}:upload`} resource={[groupScope ?? moduleScope, moduleScope]}>
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
@@ -330,7 +336,7 @@ export default function ModuleFileUploadsPage() {
                 onChange={handleUpload}
                 className="hidden"
               />
-            </Can>
+            </Can>}
             {/* Hidden picker shared by every row's Replace button. The
                 row's onClick sets `replaceFor` then triggers .click(); the
                 change event handler reads that id, posts the file, and
@@ -511,7 +517,7 @@ export default function ModuleFileUploadsPage() {
                               <span className="material-symbols-outlined text-[18px]">download</span>
                             </button>
                           </Can>
-                          <Can permission={`${prefix}:replace`} resource={[groupScope ?? moduleScope, moduleScope]}>
+                          {canModify && <Can permission={`${prefix}:replace`} resource={[groupScope ?? moduleScope, moduleScope]}>
                             <button
                               type="button"
                               title="Replace with a new PDF (keeps the same row, updates the bytes)"
@@ -523,8 +529,8 @@ export default function ModuleFileUploadsPage() {
                                 {replacing && replaceFor === f.id ? "hourglass_top" : "swap_horiz"}
                               </span>
                             </button>
-                          </Can>
-                          <Can permission={`${prefix}:delete`} resource={[groupScope ?? moduleScope, moduleScope]}>
+                          </Can>}
+                          {canModify && <Can permission={`${prefix}:delete`} resource={[groupScope ?? moduleScope, moduleScope]}>
                             <button
                               type="button"
                               title="Soft-delete"
@@ -533,7 +539,7 @@ export default function ModuleFileUploadsPage() {
                             >
                               <span className="material-symbols-outlined text-[18px]">delete</span>
                             </button>
-                          </Can>
+                          </Can>}
                         </div>
                       </td>
                     </tr>

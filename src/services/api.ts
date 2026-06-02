@@ -74,10 +74,13 @@ export function fetchRawData(
   page: number,
   pageSize: number,
   project?: string,
-  workingHoursOnly = false
+  // "working" (inside the project's working window) | "nonpeak" (outside it).
+  // Omit/undefined → backend default "all" (entire day), which the dashboard
+  // and other non-report callers rely on.
+  hours?: string
 ): Promise<PaginatedResponse<Record<string, unknown>>> {
   const p = project ? `&project=${project}` : "";
-  const wh = workingHoursOnly ? `&workingHoursOnly=true` : "";
+  const wh = hours ? `&hours=${hours}` : "";
   return request(
     `/SkillsetReport/raw?dateFrom=${dateFrom}&dateTo=${dateTo}&page=${page}&pageSize=${pageSize}${p}${wh}`
   );
@@ -91,10 +94,10 @@ export function fetchGroupedData(
   pageSize: number,
   project?: string,
   groupBySkillset = true,
-  workingHoursOnly = false
+  hours?: string
 ): Promise<PaginatedResponse<GroupedRow>> {
   const p = project ? `&project=${project}` : "";
-  const wh = workingHoursOnly ? `&workingHoursOnly=true` : "";
+  const wh = hours ? `&hours=${hours}` : "";
   return request(
     `/SkillsetReport/grouped?dateFrom=${dateFrom}&dateTo=${dateTo}&mode=${mode}&page=${page}&pageSize=${pageSize}${p}&groupBySkillset=${groupBySkillset}${wh}`
   );
@@ -105,10 +108,10 @@ export function fetchChartData(
   dateTo: string,
   project?: string,
   mode = "daily",
-  workingHoursOnly = false
+  hours?: string
 ): Promise<ChartPoint[]> {
   const p = project ? `&project=${project}` : "";
-  const wh = workingHoursOnly ? `&workingHoursOnly=true` : "";
+  const wh = hours ? `&hours=${hours}` : "";
   return request(`/SkillsetReport/chart?dateFrom=${dateFrom}&dateTo=${dateTo}${p}&mode=${mode}${wh}`);
 }
 
@@ -116,10 +119,10 @@ export function fetchSummary(
   dateFrom: string,
   dateTo: string,
   project?: string,
-  workingHoursOnly = false
+  hours?: string
 ): Promise<SummaryData> {
   const p = project ? `&project=${project}` : "";
-  const wh = workingHoursOnly ? `&workingHoursOnly=true` : "";
+  const wh = hours ? `&hours=${hours}` : "";
   return request(`/SkillsetReport/summary?dateFrom=${dateFrom}&dateTo=${dateTo}${p}${wh}`);
 }
 
@@ -133,10 +136,10 @@ export function fetchDashboardSummary(
   dateFrom: string,
   dateTo: string,
   project?: string,
-  workingHoursOnly = false
+  hours?: string
 ): Promise<DashboardSummaryData> {
   const p = project ? `&project=${project}` : "";
-  const wh = workingHoursOnly ? `&workingHoursOnly=true` : "";
+  const wh = hours ? `&hours=${hours}` : "";
   return request(`/SkillsetReport/dashboard-summary?dateFrom=${dateFrom}&dateTo=${dateTo}${p}${wh}`);
 }
 
@@ -260,7 +263,9 @@ export async function downloadExport(
   format: "excel" | "pdf" = "excel",
   projectName?: string,
   projectLogo?: string,
-  workingHoursOnly = false,
+  // "working" | "nonpeak" — the report page's hours filter. Omit → backend
+  // default "all" (entire day).
+  hours?: string,
   // PDF only: chart cards captured client-side via html2canvas. Excel ignores
   // these. Backend embeds them between the cover page and the data table so
   // the PDF reflects exactly what the user sees on screen — single source of
@@ -275,7 +280,7 @@ export async function downloadExport(
   const pn = projectName ? `&projectName=${encodeURIComponent(projectName)}` : "";
   const pl = projectLogo ? `&projectLogo=${encodeURIComponent(projectLogo)}` : "";
   const pa = projectAccent ? `&projectAccent=${encodeURIComponent(projectAccent)}` : "";
-  const wh = workingHoursOnly ? `&workingHoursOnly=true` : "";
+  const wh = hours ? `&hours=${hours}` : "";
   const url = `${BASE_URL}/SkillsetReport/export?dateFrom=${dateFrom}&dateTo=${dateTo}&mode=${mode}${p}&groupBySkillset=${groupBySkillset}&format=${format}${pn}${pl}${pa}${wh}`;
 
   const body = new FormData();

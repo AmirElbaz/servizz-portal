@@ -7,6 +7,9 @@ import AdminOnly from "./components/admin/AdminOnly";
 import LoginPage from "./pages/LoginPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import CompleteSignupPage from "./pages/CompleteSignupPage";
+import RequestAccessPage from "./pages/RequestAccessPage";
+import CompleteRegistrationPage from "./pages/CompleteRegistrationPage";
+import PendingApprovalPage from "./pages/PendingApprovalPage";
 import DashboardPage from "./pages/DashboardPage";
 import DepartmentDetailPage from "./pages/DepartmentDetailPage";
 import HrTemplateRecordsPage from "./pages/hr/HrTemplateRecordsPage";
@@ -15,10 +18,12 @@ import HrRecordDetailPage from "./pages/hr/HrRecordDetailPage";
 import ProjectDetailPage from "./pages/ProjectDetailPage";
 import ReportViewPage from "./pages/ReportViewPage";
 import AbandonedWithin5sReportPage from "./pages/AbandonedWithin5sReportPage";
+import BillingRawDataPage from "./pages/BillingRawDataPage";
 import IvrTrendComparisonPreviewPage from "./pages/IvrTrendComparisonPreviewPage";
 import IvrFunnelPreviewPage from "./pages/IvrFunnelPreviewPage";
 import HourlyDistributionPreviewPage from "./pages/HourlyDistributionPreviewPage";
 import ModuleFileUploadsPage from "./pages/ModuleFileUploadsPage";
+import ReportIndexPage from "./pages/ReportIndexPage";
 
 // Admin pages are lazy-loaded — they ship a separate chunk so non-admins
 // never download the code.
@@ -27,6 +32,8 @@ const AdminPolicyEditorPage = lazy(() => import("./pages/admin/AdminPolicyEditor
 const AdminUsersPage       = lazy(() => import("./pages/admin/AdminUsersPage"));
 const AdminDepartmentsPage = lazy(() => import("./pages/admin/AdminDepartmentsPage"));
 const AdminStructurePage   = lazy(() => import("./pages/admin/AdminStructurePage"));
+const AdminReportIndexPage = lazy(() => import("./pages/admin/AdminReportIndexPage"));
+const AdminRequestsPage    = lazy(() => import("./pages/admin/AdminRequestsPage"));
 
 function AdminFallback() {
   return (
@@ -34,6 +41,12 @@ function AdminFallback() {
       <p className="text-sm text-on-surface-variant/60">Loading admin panel…</p>
     </div>
   );
+}
+
+// /admin landing — the Admin Tab is super-admin-only, so every visitor here is
+// a super admin; send them straight to Policies.
+function AdminLanding() {
+  return <Navigate to="/admin/policies" replace />;
 }
 
 // Browser-back / forward should land the user where they were, not at
@@ -127,8 +140,12 @@ export default function App() {
         <Routes>
           <Route path="/" element={<LoginPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/request-access" element={<RequestAccessPage />} />
           <Route path="/complete-signup" element={<ProtectedRoute><CompleteSignupPage /></ProtectedRoute>} />
+          <Route path="/complete-registration" element={<ProtectedRoute><CompleteRegistrationPage /></ProtectedRoute>} />
+          <Route path="/pending-approval" element={<ProtectedRoute><PendingApprovalPage /></ProtectedRoute>} />
           <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+          <Route path="/reports" element={<ProtectedRoute><ReportIndexPage /></ProtectedRoute>} />
 
           {/* ── Department-first navigation ── */}
           <Route
@@ -161,6 +178,19 @@ export default function App() {
           <Route
             path="/department/:deptCode/project/:projectCode/report/abandoned-within-5s"
             element={<ProtectedRoute><AbandonedWithin5sReportPage /></ProtectedRoute>}
+          />
+
+          {/* ── Billing → Raw Data ──
+                Dedicated page (Per call / Per skillset toggle, fixed 8-column
+                table, scoped to the Billing department's projects). Same
+                static-segment-wins pattern as the routes above. */}
+          <Route
+            path="/department/:deptCode/report/billing-raw-data"
+            element={<ProtectedRoute><BillingRawDataPage /></ProtectedRoute>}
+          />
+          <Route
+            path="/department/:deptCode/project/:projectCode/report/billing-raw-data"
+            element={<ProtectedRoute><BillingRawDataPage /></ProtectedRoute>}
           />
 
           {/* ── IVR Trend & Comparison ── */}
@@ -258,7 +288,7 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <AdminOnly>
-                  <Navigate to="/admin/policies" replace />
+                  <AdminLanding />
                 </AdminOnly>
               </ProtectedRoute>
             }
@@ -330,6 +360,30 @@ export default function App() {
                 <AdminOnly>
                   <Suspense fallback={<AdminFallback />}>
                     <AdminStructurePage />
+                  </Suspense>
+                </AdminOnly>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/report-index"
+            element={
+              <ProtectedRoute>
+                <AdminOnly>
+                  <Suspense fallback={<AdminFallback />}>
+                    <AdminReportIndexPage />
+                  </Suspense>
+                </AdminOnly>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/requests"
+            element={
+              <ProtectedRoute>
+                <AdminOnly>
+                  <Suspense fallback={<AdminFallback />}>
+                    <AdminRequestsPage />
                   </Suspense>
                 </AdminOnly>
               </ProtectedRoute>

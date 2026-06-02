@@ -1,7 +1,7 @@
 import { Suspense, lazy } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDashboardData } from "../hooks/useDashboardData";
-import { useAuth } from "../services/auth";
+import { useAuth, roleAtLeast } from "../services/auth";
 
 // Prism is now the only landing variant. Variants A/B were retired after
 // the Prism rework shipped — if a new variant is ever needed, reintroduce
@@ -54,9 +54,9 @@ export default function DashboardPage() {
             >
               Retry
             </button>
-            {user?.isAdmin && (
+            {roleAtLeast(user?.role, "super_admin") && (
               <button
-                onClick={() => navigate("/admin/policies")}
+                onClick={() => navigate("/admin")}
                 className="btn-brand px-4 py-2 rounded-xl text-sm font-bold"
               >
                 Open Admin

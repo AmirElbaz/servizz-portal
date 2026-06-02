@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import DashboardLayout from "../../components/layout/DashboardLayout";
 import Skeleton from "../../components/admin/Skeleton";
 import { ConcurrencyError } from "../../services/admin";
-import { useAuth } from "../../services/auth";
+import { useAuth, roleAtLeast } from "../../services/auth";
 import {
   getHrRecord,
   getHrTemplate,
@@ -45,7 +45,9 @@ export default function HrRecordDetailPage() {
   // Server enforces the same via RequireHrAdminAsync on the PUT/PATCH
   // endpoints — this is cosmetic gating, not the source of truth.
   const { user } = useAuth();
-  const isAdmin = !!user?.isAdmin;
+  // HR record editing is a centrecom_user (staff) capability and above — same
+  // gate as the server's RequireHrAdminAsync (now "staff or higher").
+  const isAdmin = roleAtLeast(user?.role, "centrecom_user");
   const tid = Number(templateId);
   const rid = Number(recordId);
 

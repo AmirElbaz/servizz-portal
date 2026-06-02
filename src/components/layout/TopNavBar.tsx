@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "../../services/auth";
+import { useAuth, roleAtLeast } from "../../services/auth";
 
 interface TopNavBarProps {
   /** Kept for source-compat with the dashboard variants during transition.
@@ -41,7 +41,16 @@ export default function TopNavBar(_props: TopNavBarProps = {}) {
             <span className="material-symbols-outlined text-on-surface-variant text-[20px]">notifications</span>
             <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-primary rounded-full"></span>
           </button>
-          {user?.isAdmin && (
+          <Link
+            to="/reports"
+            title="Report index"
+            className="p-2 hover:bg-primary/10 rounded-xl transition-colors group"
+          >
+            <span className="material-symbols-outlined text-on-surface-variant group-hover:text-primary text-[20px]">
+              menu_book
+            </span>
+          </Link>
+          {roleAtLeast(user?.role, "super_admin") && (
             <Link
               to="/admin"
               title="Admin panel"

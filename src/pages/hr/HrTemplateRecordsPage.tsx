@@ -17,7 +17,7 @@ import {
   type HrValuePatch,
 } from "../../services/hr";
 import { pushRecentItem } from "../../hooks/useRecentItems";
-import { useAuth } from "../../services/auth";
+import { useAuth, roleAtLeast } from "../../services/auth";
 
 // Records list for a single template. Default landing route — clicked from
 // the dept page template card. Admin / any-HR-access user can:
@@ -30,7 +30,8 @@ export default function HrTemplateRecordsPage() {
   const { deptCode, templateId } = useParams<{ deptCode: string; templateId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const isAdmin = !!user?.isAdmin;
+  // HR template / record management is a centrecom_user (staff) capability.
+  const isAdmin = roleAtLeast(user?.role, "centrecom_user");
   const tid = Number(templateId);
 
   const [template, setTemplate] = useState<HrTemplateDetail | null>(null);

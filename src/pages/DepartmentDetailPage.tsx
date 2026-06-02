@@ -17,7 +17,7 @@ import {
 import { departmentColorHex } from "../utils/departmentColor";
 import { fmt } from "../utils/fmt";
 import { pushRecentItem } from "../hooks/useRecentItems";
-import { useAuth } from "../services/auth";
+import { useAuth, roleAtLeast } from "../services/auth";
 import {
   listHrTemplates,
   createHrTemplate,
@@ -56,6 +56,16 @@ const QA_STUB_REPORTS: { name: string; icon: string }[] = [
   { name: "QC Reports", icon: "rule" },
 ];
 
+// Placeholder report cards for HR. UI-only STUBS — no data pipeline / page
+// yet. Same "Coming soon" treatment as QA above so the planned HR reporting
+// surface is visible. `cadence` renders as the eyebrow label on the card. To
+// wire one up, remove its entry here and add a real `department_reports`
+// attachment; delete the whole block + its section when HR has real reports.
+const HR_STUB_REPORTS: { name: string; icon: string; cadence: string }[] = [
+  { name: "Monthly Attrition Report", icon: "trending_down", cadence: "Monthly" },
+  { name: "Attrition & Retention Report", icon: "groups", cadence: "Bi-annually" },
+];
+
 // True for the Quality Assurance department regardless of whether the
 // Finance→QA rename (migration 014) ran in this environment. Matches the
 // QA/legacy-FINANCE code OR the "Quality Assurance" display name.
@@ -72,7 +82,8 @@ export default function DepartmentDetailPage() {
   const { deptCode } = useParams<{ deptCode: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const isAdmin = !!user?.isAdmin;
+  // "Staff or higher": HR template design is a centrecom_user capability.
+  const isAdmin = roleAtLeast(user?.role, "centrecom_user");
   const [dept, setDept] = useState<CatalogDepartmentSummary | null>(null);
   const [projects, setProjects] = useState<CatalogProject[]>([]);
   const [directReports, setDirectReports] = useState<CatalogReportSummary[]>([]);
@@ -458,6 +469,47 @@ export default function DepartmentDetailPage() {
           </section>
         )}
 
+        {/* ── HR placeholder reports — UI-only stubs, not wired to data yet. ── */}
+        {dept.code.toUpperCase() === "HR" && (
+          <section className="mb-10">
+            <h2 className="text-xl font-bold font-headline text-on-surface tracking-tight mb-6">
+              Reports
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {HR_STUB_REPORTS.map((r) => (
+                <div
+                  key={r.name}
+                  aria-disabled="true"
+                  title="Coming soon"
+                  className="prism-surface relative rounded-2xl p-6 overflow-hidden cursor-default select-none"
+                >
+                  <div className="relative">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="w-12 h-12 bg-surface-container-high rounded-xl flex items-center justify-center text-on-surface-variant/70">
+                        <span className="material-symbols-outlined text-[22px]">
+                          {r.icon}
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md bg-surface-container-high text-on-surface-variant/60">
+                        Coming soon
+                      </span>
+                    </div>
+                    <h5 className="font-bold text-on-surface text-sm mb-1">
+                      {r.name}
+                    </h5>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/50 mb-1">
+                      {r.cadence}
+                    </p>
+                    <p className="text-[11px] text-on-surface-variant/50 leading-relaxed">
+                      Planned HR report — not available yet.
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* ── Direct reports ── */}
         {/* Reports are split by category. The IVR & Queue Analytics group
             is intentionally hidden here — it now only lives on the per-
@@ -545,7 +597,7 @@ export default function DepartmentDetailPage() {
                               Coming soon
                             </span>
                           </div>
-                          <h5 className="font-bold text-on-surface/80 text-sm mb-1">
+                          <h5 className="font-bold text-on-surface text-sm mb-1">
                             {r.name}
                           </h5>
                           <p className="text-[11px] text-on-surface-variant/50 leading-relaxed">
@@ -605,9 +657,10 @@ export default function DepartmentDetailPage() {
           // empty card.
           const templatesEnabled = dept.modules.includes("templates") && dept.code.toUpperCase() === "HR";
           const bdfEnabled = dept.modules.includes("bdf-reports");
-          // QA shows its stub report cards, so it's never "empty".
+          // QA / HR show their stub report cards, so they're never "empty".
           const qaStubsVisible = isQaDepartment(dept);
-          if (projectsVisible || directReportsVisible || templatesEnabled || bdfEnabled || qaStubsVisible) return null;
+          const hrStubsVisible = dept.code.toUpperCase() === "HR";
+          if (projectsVisible || directReportsVisible || templatesEnabled || bdfEnabled || qaStubsVisible || hrStubsVisible) return null;
           return (
             <div className="bg-white rounded-2xl editorial-shadow border border-on-surface-variant/5 p-10 text-center">
               <span className="material-symbols-outlined text-[40px] text-on-surface-variant/30 mb-2">

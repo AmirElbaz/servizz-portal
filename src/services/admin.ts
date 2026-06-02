@@ -1,4 +1,5 @@
 import { API_BASE_URL as BASE_URL } from "./config";
+import type { AccessRole } from "./auth";
 
 function getAuthHeaders(withJson = false): HeadersInit {
   const token = localStorage.getItem("token");
@@ -118,7 +119,8 @@ export interface AdminUserPolicy {
   code: string;
   name: string;
 }
-export type SignupStatus = "invited" | "email_pending" | "active";
+export type SignupStatus =
+  | "invited" | "email_pending" | "requested" | "pending_approval" | "active";
 
 export interface AdminUser {
   id: number;
@@ -196,16 +198,42 @@ export const resetUserTempPassword = (id: number) =>
 export const cancelUserInvite = (id: number) =>
   request<void>(`/Admin/users/${id}`, { method: "DELETE" });
 
-export const setUserAdmin = (id: number, isAdmin: boolean) =>
+// Assign a user's access tier. Server-gated to super_admin; enforces the
+// last-super_admin / self-demotion lock-out. `role` is one of the AccessRole
+// values ("client" | "centrecom_user" | "admin" | "super_admin").
+export const setUserRole = (id: number, role: AccessRole) =>
   request<void>(`/Admin/users/${id}`, {
     method: "PATCH",
-    body: JSON.stringify({ isAdmin }),
+    body: JSON.stringify({ role }),
   });
 
 export const setUserPolicies = (id: number, policyIds: number[]) =>
   request<void>(`/Admin/users/${id}/policies`, {
     method: "PUT",
     body: JSON.stringify({ policyIds }),
+  });
+
+// ── Access requests (user-initiated request-access flow) ───────────────────
+export interface AccessRequestRow {
+  id: number;
+  email: string | null;
+  requestNumber: string | null;
+  fullName: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  signupStatus: SignupStatus; // 'requested' | 'pending_approval'
+  requestedAt: string | null;
+}
+
+export const fetchAccessRequests = () =>
+  request<AccessRequestRow[]>("/Admin/users/access-requests");
+
+// Approve: assign a role + policies, flipping the user to 'active'. Granting
+// admin/super_admin is super-admin-only (enforced server-side).
+export const approveAccessRequest = (id: number, role: AccessRole, policyIds: number[]) =>
+  request<void>(`/Admin/users/${id}/approve`, {
+    method: "POST",
+    body: JSON.stringify({ role, policyIds }),
   });
 
 // ── Departments ──────────────────────────────────────────────────────────────
