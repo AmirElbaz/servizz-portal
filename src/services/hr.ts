@@ -80,6 +80,17 @@ export type HrFieldType = "text" | "number" | "date" | "checkbox" | "select";
 export type HrRecordStatus = "open" | "completed";
 export type HrFieldPlacement = "creation" | "detail";
 
+// A template "section" (HR / Non Servizz / …). The backend gates each section
+// by `minRole`; the list endpoint only returns sections the caller may see, so
+// the UI can render whatever it receives without re-checking access.
+export interface HrTemplateGroup {
+  id: number;
+  code: string;
+  name: string;
+  sortOrder: number;
+  minRole: string | null;
+}
+
 export interface HrTemplate {
   id: number;
   code: string;
@@ -91,6 +102,11 @@ export interface HrTemplate {
   updatedAt: string;
   fieldCount: number;
   recordCount: number;
+  // Section the template belongs to. The list endpoint only returns templates
+  // in sections the caller may see.
+  groupId: number | null;
+  groupCode: string | null;
+  groupName: string | null;
 }
 
 export interface HrTemplateField {
@@ -131,6 +147,10 @@ export interface HrTemplateDetail {
   // page to render the design-lock banner and disable structure mutations
   // when > 0. Backend also enforces this (409 on mutations).
   recordCount: number;
+  // Section the template belongs to (HR / Non Servizz / …).
+  groupId: number | null;
+  groupCode: string | null;
+  groupName: string | null;
   sections: HrTemplateSection[];
   fields: HrTemplateField[];
 }
@@ -179,6 +199,11 @@ export interface HrRecordListResponse {
 export const listHrTemplates = (includeArchived = false) =>
   request<HrTemplate[]>(`/Hr/templates?includeArchived=${includeArchived}`);
 
+// Sections the caller may see/manage (HR + any gated sections their role
+// unlocks, e.g. Non Servizz for admins).
+export const listHrTemplateGroups = () =>
+  request<HrTemplateGroup[]>("/Hr/template-groups");
+
 export const getHrTemplate = (id: number) =>
   requestWithEtag<HrTemplateDetail>(`/Hr/templates/${id}`);
 
@@ -187,6 +212,8 @@ export const createHrTemplate = (body: {
   name: string;
   description: string | null;
   icon: string | null;
+  // Target section. Omit/null → backend defaults to the 'hr' section.
+  groupId?: number | null;
 }) =>
   requestWithEtag<{ id: number }>("/Hr/templates", {
     method: "POST",
@@ -195,7 +222,14 @@ export const createHrTemplate = (body: {
 
 export const updateHrTemplate = (
   id: number,
-  body: { name: string; description: string | null; icon: string | null; titleLabel: string | null },
+  body: {
+    name: string;
+    description: string | null;
+    icon: string | null;
+    titleLabel: string | null;
+    // Move the template to another section. Omit to leave it where it is.
+    groupId?: number | null;
+  },
   ifMatch: string | null
 ) =>
   requestWithEtag<void>(`/Hr/templates/${id}`, {

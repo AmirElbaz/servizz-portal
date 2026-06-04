@@ -29,6 +29,13 @@ export type IvrPlaceholder = {
    * a "Coming soon" tooltip.
    */
   previewHref?: string;
+  /**
+   * Fully shipped (real backend + live data), just not a catalog report.
+   * Renders identically to a real report card — full colour, clickable via
+   * the page's linkBuilder, and NO badge (it isn't a "preview"). Use this
+   * instead of `previewHref` for reports that are actually live.
+   */
+  live?: boolean;
 };
 
 export const IVR_PLACEHOLDERS: IvrPlaceholder[] = [
@@ -44,6 +51,20 @@ export const IVR_PLACEHOLDERS: IvrPlaceholder[] = [
     icon: "trending_up",
     metricsCovered: "Offered, Auto-handled (metrics 10–11)",
     previewHref: "/preview/ivr-trend-comparison",
+  },
+  {
+    // Live (backend + page shipped 2026-06-03). NOT a catalog report — access
+    // mirrors skillset-historical, so it surfaces as a clickable placeholder
+    // rather than a real card. previewHref is the boolean "has a page" signal;
+    // the real project-locked URL comes from the caller's linkBuilder.
+    code: "repeat-callers",
+    name: "Repeat-Caller Analytics",
+    description:
+      "Caller behavior in a 72-hour window — total calls, unique contacts, " +
+      "and one-time vs repeat callers per project.",
+    icon: "history",
+    metricsCovered: "Metrics 3–5 — repeat callers (72h)",
+    live: true,
   },
   {
     // New stub beside Trend & Comparison (Amir 2026-05-20). Non-clickable
@@ -68,15 +89,6 @@ export const IVR_PLACEHOLDERS: IvrPlaceholder[] = [
   //   icon: "alt_route",
   //   metricsCovered: "Metrics 1, 2, 6",
   //   previewHref: "/preview/ivr-funnel",
-  // },
-  // {
-  //   code: "repeat-contacts",
-  //   name: "Repeat Contacts",
-  //   description:
-  //     "Caller behavior in a 72-hour window — same-number repeats per project, " +
-  //     "unique-contact distribution by call frequency.",
-  //   icon: "history",
-  //   metricsCovered: "Metrics 3, 4, 5",
   // },
   // {
   //   code: "hourly-distribution",

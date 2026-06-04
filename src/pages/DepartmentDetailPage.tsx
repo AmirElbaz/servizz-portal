@@ -20,8 +20,10 @@ import { pushRecentItem } from "../hooks/useRecentItems";
 import { useAuth, roleAtLeast } from "../services/auth";
 import {
   listHrTemplates,
+  listHrTemplateGroups,
   createHrTemplate,
   type HrTemplate,
+  type HrTemplateGroup,
 } from "../services/hr";
 // import { IvrCategorySection } from "../components/reports/IvrCategorySection";
 //   ^ re-add when re-enabling the dept-level IVR section below.
@@ -88,6 +90,11 @@ export default function DepartmentDetailPage() {
   const [projects, setProjects] = useState<CatalogProject[]>([]);
   const [directReports, setDirectReports] = useState<CatalogReportSummary[]>([]);
   const [templates, setTemplates] = useState<HrTemplate[]>([]);
+  // Template sections (HR / Non Servizz / …) the caller may see. Fetched
+  // alongside templates so an empty gated section still renders (with its
+  // "New template" CTA) for admins. Non-admins only ever receive the default
+  // 'hr' section from the backend.
+  const [templateGroups, setTemplateGroups] = useState<HrTemplateGroup[]>([]);
   // BDF Reports module groups (when dept hosts the file_uploads-kind module).
   // Loaded lazily after the main dept payload arrives so the dept page paints
   // immediately — empty array until resolved.
@@ -131,8 +138,12 @@ export default function DepartmentDetailPage() {
           listHrTemplates(false)
             .then(setTemplates)
             .catch(() => setTemplates([]));
+          listHrTemplateGroups()
+            .then(setTemplateGroups)
+            .catch(() => setTemplateGroups([]));
         } else {
           setTemplates([]);
+          setTemplateGroups([]);
         }
         // BDF Reports module is currently the only file_uploads-kind module
         // we render groups for on the dept landing. When the dept hosts it,
@@ -159,6 +170,16 @@ export default function DepartmentDetailPage() {
   const [newTemplateName, setNewTemplateName] = useState("");
   const [newTemplateError, setNewTemplateError] = useState<string | null>(null);
   const [newTemplateBusy, setNewTemplateBusy] = useState(false);
+  // Which section the New-template modal will create into. Set when the modal
+  // is opened from a section's "New template" button.
+  const [newTemplateGroup, setNewTemplateGroup] = useState<HrTemplateGroup | null>(null);
+
+  function openNewTemplate(group: HrTemplateGroup) {
+    setNewTemplateName("");
+    setNewTemplateError(null);
+    setNewTemplateGroup(group);
+    setShowNewTemplate(true);
+  }
 
   async function createNewTemplate() {
     if (!deptCode || !newTemplateName.trim()) return;
@@ -179,6 +200,9 @@ export default function DepartmentDetailPage() {
         name,
         description: null,
         icon: "checklist",
+        // Create into the section whose button was clicked (defaults to 'hr'
+        // server-side if somehow null).
+        groupId: newTemplateGroup?.id ?? null,
       });
       setShowNewTemplate(false);
       setNewTemplateName("");
@@ -401,73 +425,103 @@ export default function DepartmentDetailPage() {
           </section>
         )}
 
-        {/* ── Templates ── */}
-        {dept.modules.includes("templates") && dept.code.toUpperCase() === "HR" && (
-          <section className="mb-10">
-            <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
-              <h2 className="text-xl font-bold font-headline text-on-surface tracking-tight">
-                Templates
-              </h2>
-              {/* Template design is admin-only — the backend also gates this
-                  but hiding the button avoids a confusing 403 on click. */}
-              {isAdmin && (
-                <button
-                  type="button"
-                  onClick={() => { setNewTemplateName(""); setNewTemplateError(null); setShowNewTemplate(true); }}
-                  className="btn-brand inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold"
-                >
-                  <span className="material-symbols-outlined text-[16px]">add</span>
-                  New template
-                </button>
-              )}
-            </div>
-            {templates.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-dashed border-on-surface-variant/15 p-10 text-center">
-                <span className="material-symbols-outlined text-[40px] text-on-surface-variant/30 mb-2">
-                  checklist
-                </span>
-                <p className="text-sm text-on-surface-variant/60">
-                  No templates yet. Create your first template to get started.
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {templates.map((t) => (
-                  <Link
-                    key={t.id}
-                    to={`/department/${deptCode}/templates/${t.id}/records`}
-                    className="group prism-surface relative rounded-2xl p-6 no-underline card-lift overflow-hidden hover:border-accent-50"
-                  >
-                    <div className="flex items-start gap-3 mb-3">
-                      <div
-                        className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 text-primary"
-                        style={{ background: `${color}12` }}
+        {/* ── Templates (one section per template group) ── */}
+        {/* Sections (HR / Non Servizz / …) come from the backend, which only
+            returns the ones the caller's role may see — so a non-admin gets
+            just the default "Templates" section exactly as before, while an
+            admin additionally sees "Non Servizz". Visibility is config-driven
+            (group.minRole), never keyed off template names. */}
+        {dept.modules.includes("templates") && dept.code.toUpperCase() === "HR" && (() => {
+          // Bucket templates by their section code. A template whose section
+          // is unknown to this user or null falls back to the default 'hr'
+          // section so it can never silently disappear.
+          const defaultGroupCode =
+            templateGroups.find((g) => g.code === "hr")?.code ?? templateGroups[0]?.code;
+          const byGroup = new Map<string, HrTemplate[]>();
+          for (const t of templates) {
+            const known = templateGroups.some((g) => g.code === t.groupCode);
+            const key = (known ? t.groupCode : defaultGroupCode) ?? defaultGroupCode;
+            if (!key) continue;
+            let arr = byGroup.get(key);
+            if (!arr) { arr = []; byGroup.set(key, arr); }
+            arr.push(t);
+          }
+          // Manage = create/design. Any section the backend returned is at
+          // least viewable; creating needs staff+ (centrecom_user). Gated
+          // sections are only returned to roles that clear the gate, so this
+          // single check is sufficient for every section.
+          const canManage = isAdmin;
+
+          return templateGroups.map((group) => {
+            const groupTemplates = byGroup.get(group.code) ?? [];
+            return (
+              <section key={group.id} className="mb-10">
+                <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
+                  <h2 className="text-xl font-bold font-headline text-on-surface tracking-tight">
+                    {group.name}
+                  </h2>
+                  {/* Template design is staff-only — the backend also gates
+                      this, but hiding the button avoids a confusing 403. */}
+                  {canManage && (
+                    <button
+                      type="button"
+                      onClick={() => openNewTemplate(group)}
+                      className="btn-brand inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">add</span>
+                      New template
+                    </button>
+                  )}
+                </div>
+                {groupTemplates.length === 0 ? (
+                  <div className="bg-white rounded-2xl border border-dashed border-on-surface-variant/15 p-10 text-center">
+                    <span className="material-symbols-outlined text-[40px] text-on-surface-variant/30 mb-2">
+                      checklist
+                    </span>
+                    <p className="text-sm text-on-surface-variant/60">
+                      No templates yet. Create your first template to get started.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {groupTemplates.map((t) => (
+                      <Link
+                        key={t.id}
+                        to={`/department/${deptCode}/templates/${t.id}/records`}
+                        className="group prism-surface relative rounded-2xl p-6 no-underline card-lift overflow-hidden hover:border-accent-50"
                       >
-                        <span className="material-symbols-outlined text-[22px]">
-                          {t.icon || "checklist"}
-                        </span>
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <h3 className="text-sm font-black text-on-surface leading-tight truncate">
-                          {t.name}
-                        </h3>
-                        <p className="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/50 mt-0.5">
-                          {fmt.int(t.fieldCount)} field{t.fieldCount === 1 ? "" : "s"} ·{" "}
-                          {fmt.int(t.recordCount)} record{t.recordCount === 1 ? "" : "s"}
-                        </p>
-                      </div>
-                    </div>
-                    {t.description && (
-                      <p className="text-[11px] text-on-surface-variant/60 leading-relaxed line-clamp-2">
-                        {t.description}
-                      </p>
-                    )}
-                  </Link>
-                ))}
-              </div>
-            )}
-          </section>
-        )}
+                        <div className="flex items-start gap-3 mb-3">
+                          <div
+                            className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 text-primary"
+                            style={{ background: `${color}12` }}
+                          >
+                            <span className="material-symbols-outlined text-[22px]">
+                              {t.icon || "checklist"}
+                            </span>
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <h3 className="text-sm font-black text-on-surface leading-tight truncate">
+                              {t.name}
+                            </h3>
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/50 mt-0.5">
+                              {fmt.int(t.fieldCount)} field{t.fieldCount === 1 ? "" : "s"} ·{" "}
+                              {fmt.int(t.recordCount)} record{t.recordCount === 1 ? "" : "s"}
+                            </p>
+                          </div>
+                        </div>
+                        {t.description && (
+                          <p className="text-[11px] text-on-surface-variant/60 leading-relaxed line-clamp-2">
+                            {t.description}
+                          </p>
+                        )}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </section>
+            );
+          });
+        })()}
 
         {/* ── HR placeholder reports — UI-only stubs, not wired to data yet. ── */}
         {dept.code.toUpperCase() === "HR" && (
@@ -689,7 +743,7 @@ export default function DepartmentDetailPage() {
             aria-modal="true"
           >
             <h3 className="text-lg font-extrabold font-headline text-on-surface mb-2">
-              New template
+              New template{newTemplateGroup ? ` · ${newTemplateGroup.name}` : ""}
             </h3>
             <p className="text-sm text-on-surface-variant/70 mb-4">
               Give your template a name. You'll add fields on the next screen.

@@ -20,6 +20,7 @@ import ReportViewPage from "./pages/ReportViewPage";
 import AbandonedWithin5sReportPage from "./pages/AbandonedWithin5sReportPage";
 import BillingRawDataPage from "./pages/BillingRawDataPage";
 import IvrTrendComparisonPreviewPage from "./pages/IvrTrendComparisonPreviewPage";
+import RepeatCallersPreviewPage from "./pages/RepeatCallersPreviewPage";
 import IvrFunnelPreviewPage from "./pages/IvrFunnelPreviewPage";
 import HourlyDistributionPreviewPage from "./pages/HourlyDistributionPreviewPage";
 import ModuleFileUploadsPage from "./pages/ModuleFileUploadsPage";
@@ -215,6 +216,23 @@ export default function App() {
           <Route
             path="/department/:deptCode/project/:projectCode/report/ivr-trend-comparison"
             element={<ProtectedRoute><IvrTrendComparisonPreviewPage /></ProtectedRoute>}
+          />
+
+          {/* ── Repeat-Caller Analytics (72h window) — SKETCH/PREVIEW ──
+                Mock-data layout to agree wording + layout with the business
+                before any backend exists. Three URL shapes mirror the IVR
+                pages (preview alias, dept-direct, project-locked).            */}
+          <Route
+            path="/preview/repeat-callers"
+            element={<ProtectedRoute><RepeatCallersPreviewPage /></ProtectedRoute>}
+          />
+          <Route
+            path="/department/:deptCode/report/repeat-callers"
+            element={<ProtectedRoute><RepeatCallersPreviewPage /></ProtectedRoute>}
+          />
+          <Route
+            path="/department/:deptCode/project/:projectCode/report/repeat-callers"
+            element={<ProtectedRoute><RepeatCallersPreviewPage /></ProtectedRoute>}
           />
 
           {/* ── IVR Funnel — three URL shapes (mirrors trend-comparison) ──

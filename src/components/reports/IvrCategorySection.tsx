@@ -32,9 +32,25 @@ export function IvrCategorySection({
     (p) => !realByCode.has(p.code),
   );
 
-  // No real reports AND no placeholders configured → render nothing rather
-  // than an empty section (defensive — shouldn't happen in practice).
-  if (realReports.length === 0 && placeholdersToRender.length === 0) return null;
+  // Solid cards = real catalog reports + `live` placeholders (shipped reports
+  // that just aren't catalog rows). Both render the same full-colour, badge-
+  // less card. Remaining placeholders keep the "Live preview" / "Coming soon"
+  // badge treatment.
+  const solidCards = [
+    ...realReports.map((r) => ({
+      code: r.code,
+      name: r.name,
+      description: r.description ?? null,
+      icon: r.icon || "bar_chart",
+    })),
+    ...placeholdersToRender
+      .filter((p) => p.live)
+      .map((p) => ({ code: p.code, name: p.name, description: p.description, icon: p.icon })),
+  ];
+  const badgedPlaceholders = placeholdersToRender.filter((p) => !p.live);
+
+  // Nothing to show → render nothing rather than an empty section (defensive).
+  if (solidCards.length === 0 && badgedPlaceholders.length === 0) return null;
 
   return (
     <section className="mb-10">
@@ -56,12 +72,12 @@ export function IvrCategorySection({
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {/* Real reports first, placeholders after. Both share the same card
-            shape so the eye flows continuously across the row. */}
-        {realReports.map((r) => (
+        {/* Solid (real + live) cards first, badged placeholders after. All
+            share the same card shape so the eye flows across the row. */}
+        {solidCards.map((c) => (
           <Link
-            key={r.code}
-            to={linkBuilder(r.code)}
+            key={c.code}
+            to={linkBuilder(c.code)}
             className="group prism-surface relative rounded-2xl p-6 no-underline card-lift overflow-hidden hover:border-accent-50"
           >
             <div
@@ -74,22 +90,22 @@ export function IvrCategorySection({
                 style={{ backgroundColor: `${accent}15`, color: accent }}
               >
                 <span className="material-symbols-outlined text-[22px]">
-                  {r.icon || "bar_chart"}
+                  {c.icon}
                 </span>
               </div>
               <h5 className="font-bold text-on-surface text-sm mb-1">
-                {r.name}
+                {c.name}
               </h5>
-              {r.description && (
+              {c.description && (
                 <p className="text-[11px] text-on-surface-variant/60 leading-relaxed">
-                  {r.description}
+                  {c.description}
                 </p>
               )}
             </div>
           </Link>
         ))}
 
-        {placeholdersToRender.map((p) => {
+        {badgedPlaceholders.map((p) => {
           const card = (
             <div
               className="relative rounded-2xl p-6 overflow-hidden border border-dashed bg-white/40"
