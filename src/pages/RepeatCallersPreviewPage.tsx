@@ -344,7 +344,7 @@ export default function RepeatCallersPreviewPage() {
   const loading = (catalogProjects === null || metricsByName === null) && !dataError;
 
   const KPIS = [
-    { key: "totalCalls",     label: "Total calls",      value: totals.totalCalls,     color: C_TOTAL,  icon: "call",         hint: "Offered calls with a caller ID" },
+    { key: "totalCalls",     label: "Total calls",      value: totals.totalCalls,     color: C_TOTAL,  icon: "call",         hint: "Answered calls (excl. anonymous)" },
     { key: "uniqueContacts", label: "Unique contacts",  value: totals.uniqueContacts, color: C_UNIQUE, icon: "group",        hint: "Different phone numbers that called" },
     { key: "oneTime",        label: "One-time callers", value: totals.oneTime,        color: C_ONCE,   icon: "check_circle", hint: "Called once, didn't ring back in 72h" },
     { key: "repeat",         label: "Repeat callers",   value: totals.repeat,         color: C_REPEAT, icon: "replay",       hint: "Rang back within 72h of a prior call" },
@@ -544,11 +544,11 @@ export default function RepeatCallersPreviewPage() {
           width="lg"
         >
           <p className="text-[13px] text-on-surface-variant/80 leading-relaxed mb-5">
-            For the chosen month, we look at every <strong>offered</strong> call (one that was answered, or
-            abandoned after 5 seconds in the queue) that came from a real caller number, and group those calls by
-            the number that dialled in. If the same number calls again <strong>within 3 days (72 hours)</strong> of
-            a previous call, we treat that as the <em>same person coming back</em>. That single rule is what
-            separates the four numbers below.
+            For the chosen month, we look at every <strong>answered</strong> call (one the agent actually picked
+            up) from any caller phone number or ID — everything except withheld/anonymous callers — and group
+            those calls by the number that dialled in. If the same number calls again
+            <strong> within 3 days (72 hours)</strong> of a previous call, we treat that as the
+            <em> same person coming back</em>. That single rule is what separates the four numbers below.
           </p>
 
           <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
@@ -557,8 +557,8 @@ export default function RepeatCallersPreviewPage() {
               <div>
                 <dt className="text-[13px] font-bold text-on-surface">Total calls</dt>
                 <dd className="text-[12px] text-on-surface-variant/70 leading-relaxed">
-                  Every offered call from an identified number this month — counted one by one. If one person
-                  called five times, that's five calls here. This is offered call volume.
+                  Every answered call from an identified caller this month — counted one by one. If one person
+                  called five times, that's five calls here. This is answered call volume.
                 </dd>
               </div>
             </div>
@@ -716,7 +716,7 @@ export default function RepeatCallersPreviewPage() {
                     <thead>
                       <tr className="bg-surface-container-high/30">
                         {includeProjectCol && <th className="tbl-th">Project</th>}
-                        <th className="tbl-th">Caller ID</th>
+                        <th className="tbl-th">Caller phone number or ID</th>
                         <th className="tbl-th">Skillset</th>
                         <th className="tbl-th">Call time</th>
                       </tr>
@@ -743,7 +743,7 @@ export default function RepeatCallersPreviewPage() {
                     <thead>
                       <tr className="bg-surface-container-high/30">
                         {includeProjectCol && <th className="tbl-th">Project</th>}
-                        <th className="tbl-th">Caller ID</th>
+                        <th className="tbl-th">Caller phone number or ID</th>
                         <th className="tbl-th text-right"># Calls</th>
                         <th className="tbl-th">Type</th>
                       </tr>

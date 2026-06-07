@@ -265,14 +265,17 @@ export default function ReportViewPage() {
   // "no data" / full-column flash) before the initial fetch kicks in.
   const [loading, setLoading] = useState(true);
   const [groupBySkillset, setGroupBySkillset] = useState(true);
-  // Non-peak hours toggle: OFF (default) = show only rows INSIDE the project's
-  // working window (operating / peak hours). ON = show only rows OUTSIDE it
-  // (non-peak). There is no "entire day" view on this page anymore. The backend
-  // takes an `hours` string ("working" | "nonpeak"); we map the toggle once
-  // here and pass `hours` at every call site. (The backend still supports
-  // "all"/entire-day for the dashboard and other non-report callers.)
+  // Hours scope. Two interacting controls:
+  //   - `entireDay` ON  → `hours = "all"`: no window filter, every row. While
+  //     on, the Operating/Non-peak segmented control is disabled (the inside/
+  //     outside distinction is meaningless when we show everything).
+  //   - `entireDay` OFF → the segmented control is live: `nonPeak` picks rows
+  //     INSIDE the project's working window ("working") vs OUTSIDE it
+  //     ("nonpeak"). The backend takes the resulting `hours` string at every
+  //     call site.
+  const [entireDay, setEntireDay] = useState(false);
   const [nonPeak, setNonPeak] = useState(false);
-  const hours = nonPeak ? "nonpeak" : "working";
+  const hours = entireDay ? "all" : nonPeak ? "nonpeak" : "working";
 
   // Refs on the two chart cards — captured to PNG via html2canvas on PDF
   // export so the PDF embeds exactly the chart the user sees. Kept null
@@ -407,7 +410,7 @@ export default function ReportViewPage() {
     }
     load();
     return () => { cancelled = true; };
-  }, [dateFrom, dateTo, viewMode, currentPage, pageSize, projectId, groupBySkillset, nonPeak]);
+  }, [dateFrom, dateTo, viewMode, currentPage, pageSize, projectId, groupBySkillset, nonPeak, entireDay]);
 
   // Fetch chart + summary (re-fetch when view mode / interval changes too).
   // Promise.all is all-or-nothing — if chart throws, summary doesn't update
@@ -435,12 +438,12 @@ export default function ReportViewPage() {
     }
     load();
     return () => { cancelled = true; };
-  }, [dateFrom, dateTo, projectId, viewMode, nonPeak]);
+  }, [dateFrom, dateTo, projectId, viewMode, nonPeak, entireDay]);
 
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [dateFrom, dateTo, viewMode, groupBySkillset, nonPeak, projectId]);
+  }, [dateFrom, dateTo, viewMode, groupBySkillset, nonPeak, entireDay, projectId]);
 
   if (catalogLoading) {
     return (
@@ -673,8 +676,8 @@ export default function ReportViewPage() {
                 inside each project's working window (normal / weekend /
                 public-holiday); "Non-peak" flips to the rows OUTSIDE it. A
                 segmented control (not a toggle) so the either/or is legible.
-                There is no "entire day" view here anymore. */}
-            <div className="flex items-center gap-2.5">
+                Disabled while "Entire day" is on (no window filter applies). */}
+            <div className={`flex items-center gap-2.5 transition-opacity ${entireDay ? "opacity-30 pointer-events-none" : ""}`}>
               <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 whitespace-nowrap">
                 Hours
               </label>
@@ -688,6 +691,7 @@ export default function ReportViewPage() {
                     <button
                       key={val}
                       onClick={() => setNonPeak(val === "nonpeak")}
+                      disabled={entireDay}
                       className={`h-[38px] px-3.5 text-[12px] font-semibold transition-colors ${
                         active
                           ? "bg-accent text-white"
@@ -699,6 +703,24 @@ export default function ReportViewPage() {
                   );
                 })}
               </div>
+            </div>
+
+            <div className="w-px h-5 bg-on-surface-variant/10" />
+
+            {/* Toggle: Entire day — when on, hours = "all" (no window filter)
+                and the Operating/Non-peak control above is disabled. */}
+            <div className="flex items-center gap-2.5">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 whitespace-nowrap">
+                Entire day
+              </label>
+              <button
+                onClick={() => setEntireDay(!entireDay)}
+                title="Show all rows for the period, ignoring each project's working-hours window."
+                className={`relative w-10 h-[22px] rounded-full transition-colors ${entireDay ? "" : "bg-on-surface-variant/20"}`}
+                style={entireDay ? { backgroundColor: accent.color } : undefined}
+              >
+                <span className={`absolute top-[2px] left-[2px] w-[18px] h-[18px] bg-white rounded-full shadow transition-transform ${entireDay ? "translate-x-[18px]" : ""}`} />
+              </button>
             </div>
 
             <div className="w-px h-5 bg-on-surface-variant/10" />

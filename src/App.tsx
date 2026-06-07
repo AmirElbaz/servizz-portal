@@ -35,6 +35,7 @@ const AdminDepartmentsPage = lazy(() => import("./pages/admin/AdminDepartmentsPa
 const AdminStructurePage   = lazy(() => import("./pages/admin/AdminStructurePage"));
 const AdminReportIndexPage = lazy(() => import("./pages/admin/AdminReportIndexPage"));
 const AdminRequestsPage    = lazy(() => import("./pages/admin/AdminRequestsPage"));
+const AdminAuditLogPage    = lazy(() => import("./pages/admin/AdminAuditLogPage"));
 
 function AdminFallback() {
   return (
@@ -390,6 +391,18 @@ export default function App() {
                 <AdminOnly>
                   <Suspense fallback={<AdminFallback />}>
                     <AdminReportIndexPage />
+                  </Suspense>
+                </AdminOnly>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/audit"
+            element={
+              <ProtectedRoute>
+                <AdminOnly>
+                  <Suspense fallback={<AdminFallback />}>
+                    <AdminAuditLogPage />
                   </Suspense>
                 </AdminOnly>
               </ProtectedRoute>

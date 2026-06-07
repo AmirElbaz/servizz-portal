@@ -588,3 +588,83 @@ export const setPolicyDepartments = (
     ifMatch,
   });
 
+// ── Audit log ──────────────────────────────────────────────────────────────
+// Read-only window onto the backend audit_events table. Super-admin only
+// (server gates every endpoint at MinRole(SuperAdmin)). The list view omits the
+// heavy before/after JSONB; the detail endpoint returns them parsed as objects.
+
+export interface AuditEventRow {
+  id: string;
+  occurredAt: string;
+  correlationId: string | null;
+  actorUserId: number | null;
+  actorUsername: string | null;
+  action: string;
+  module: string;
+  entityType: string | null;
+  entityId: string | null;
+  description: string | null;
+  ipAddress: string | null;
+  success: boolean;
+  isCritical: boolean;
+  statusCode: number | null;
+  durationMs: number | null;
+}
+
+export interface AuditEventDetail extends AuditEventRow {
+  beforeValues: unknown | null;
+  afterValues: unknown | null;
+  userAgent: string | null;
+  httpMethod: string | null;
+  route: string | null;
+}
+
+export interface AuditSearchResult {
+  page: number;
+  pageSize: number;
+  total: number;
+  rows: AuditEventRow[];
+}
+
+export interface AuditFilterOptions {
+  actions: string[];
+  modules: string[];
+  entityTypes: string[];
+}
+
+export interface AuditSearchParams {
+  from?: string;
+  to?: string;
+  userId?: number;
+  action?: string;
+  module?: string;
+  entityType?: string;
+  success?: boolean;
+  q?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export const searchAudit = (params: AuditSearchParams) => {
+  const qs = new URLSearchParams();
+  if (params.from) qs.set("from", params.from);
+  if (params.to) qs.set("to", params.to);
+  if (params.userId != null) qs.set("userId", String(params.userId));
+  if (params.action) qs.set("action", params.action);
+  if (params.module) qs.set("module", params.module);
+  if (params.entityType) qs.set("entityType", params.entityType);
+  if (params.success != null) qs.set("success", String(params.success));
+  if (params.q) qs.set("q", params.q);
+  qs.set("page", String(params.page ?? 1));
+  qs.set("pageSize", String(params.pageSize ?? 50));
+  return request<AuditSearchResult>(`/Admin/audit?${qs.toString()}`);
+};
+
+export const getAuditEvent = (id: string, occurredAt?: string) => {
+  const qs = occurredAt ? `?occurredAt=${encodeURIComponent(occurredAt)}` : "";
+  return request<AuditEventDetail>(`/Admin/audit/${id}${qs}`);
+};
+
+export const getAuditFilters = () =>
+  request<AuditFilterOptions>(`/Admin/audit/filters`);
+

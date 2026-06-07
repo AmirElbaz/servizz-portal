@@ -52,20 +52,11 @@ export const IVR_PLACEHOLDERS: IvrPlaceholder[] = [
     metricsCovered: "Offered, Auto-handled (metrics 10–11)",
     previewHref: "/preview/ivr-trend-comparison",
   },
-  {
-    // Live (backend + page shipped 2026-06-03). NOT a catalog report — access
-    // mirrors skillset-historical, so it surfaces as a clickable placeholder
-    // rather than a real card. previewHref is the boolean "has a page" signal;
-    // the real project-locked URL comes from the caller's linkBuilder.
-    code: "repeat-callers",
-    name: "Repeat-Caller Analytics",
-    description:
-      "Caller behavior in a 72-hour window — total calls, unique contacts, " +
-      "and one-time vs repeat callers per project.",
-    icon: "history",
-    metricsCovered: "Metrics 3–5 — repeat callers (72h)",
-    live: true,
-  },
+  // NOTE: repeat-callers is now a REAL catalog report (registered + attached
+  // via migration 055, 2026-06-04) so it can be granted/hidden per policy. It
+  // therefore renders as a normal access-filtered catalog card via realReports
+  // — NOT as a placeholder here. A placeholder would show even to users the
+  // report is hidden from (and 403 on click), so it must NOT be listed.
   {
     // New stub beside Trend & Comparison (Amir 2026-05-20). Non-clickable
     // "Coming soon" card — no preview page wired yet. Promote to a clickable

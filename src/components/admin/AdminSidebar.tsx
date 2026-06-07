@@ -21,6 +21,7 @@ const items: AdminNavItem[] = [
   { to: "/admin/departments", label: "Departments",       icon: "domain",        minRole: "super_admin" },
   { to: "/admin/structure",   label: "Project Structure", icon: "account_tree",  minRole: "super_admin" },
   { to: "/admin/report-index", label: "Report Index",     icon: "menu_book",     minRole: "super_admin" },
+  { to: "/admin/audit",       label: "Audit Log",         icon: "history",       minRole: "super_admin" },
 ];
 
 interface AdminSidebarProps {
