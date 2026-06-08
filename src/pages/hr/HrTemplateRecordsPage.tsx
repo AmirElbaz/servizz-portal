@@ -96,7 +96,10 @@ export default function HrTemplateRecordsPage() {
             kind: "hr-template",
             id: `${deptCode}/${tid}`,
             label: r.data.name,
-            sublabel: "HR Templates",
+            // Use the template's section name (e.g. "Quality & Training
+            // Reports", "Servizz Projects") so QA templates don't show up as
+            // "HR Templates" in recents.
+            sublabel: r.data.groupName ?? "Templates",
             icon: "checklist",
             href: `/department/${deptCode}/templates/${tid}/records`,
           });

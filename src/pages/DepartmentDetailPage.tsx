@@ -45,40 +45,15 @@ import { getModule, type ModuleGroupSummary } from "../services/modules";
 // enabled before any template exists), each section handles its own empty
 // state.
 
-// Placeholder report cards for Quality Assurance. These are STUBS — the
-// reports have no data pipeline / page yet. They render as non-clickable
-// "Coming soon" cards so the planned QA reporting surface is visible. To
-// retire one, delete its entry; replace with a real `department_reports`
-// attachment once the report is built. Remove the whole block + the
-// section that consumes it when QA has real reports.
-const QA_STUB_REPORTS: { name: string; icon: string }[] = [
-  { name: "Monthly Shopper Action Report", icon: "storefront" },
-  { name: "Training & Development Report", icon: "school" },
-  { name: "Knowledge Transfer Implementation Report", icon: "psychology" },
-  { name: "QC Reports", icon: "rule" },
-];
-
 // Placeholder report cards for HR. UI-only STUBS — no data pipeline / page
-// yet. Same "Coming soon" treatment as QA above so the planned HR reporting
-// surface is visible. `cadence` renders as the eyebrow label on the card. To
-// wire one up, remove its entry here and add a real `department_reports`
-// attachment; delete the whole block + its section when HR has real reports.
+// yet. `cadence` renders as the eyebrow label on the card. To wire one up,
+// remove its entry here and add a real `department_reports` attachment; delete
+// the whole block + its section when HR has real reports. (QA's stubs were
+// retired once the real QA templates shipped — see the Templates section.)
 const HR_STUB_REPORTS: { name: string; icon: string; cadence: string }[] = [
   { name: "Monthly Attrition Report", icon: "trending_down", cadence: "Monthly" },
   { name: "Attrition & Retention Report", icon: "groups", cadence: "Bi-annually" },
 ];
-
-// True for the Quality Assurance department regardless of whether the
-// Finance→QA rename (migration 014) ran in this environment. Matches the
-// QA/legacy-FINANCE code OR the "Quality Assurance" display name.
-function isQaDepartment(dept: { code: string; name: string }): boolean {
-  const code = (dept.code ?? "").toUpperCase();
-  return (
-    code === "QA" ||
-    code === "FINANCE" ||
-    (dept.name ?? "").trim().toLowerCase() === "quality assurance"
-  );
-}
 
 export default function DepartmentDetailPage() {
   const { deptCode } = useParams<{ deptCode: string }>();
@@ -131,14 +106,16 @@ export default function DepartmentDetailPage() {
         // non-admin users see the grouping without needing access to the
         // admin-only /Admin/project-groups endpoint.
         //
-        // Load templates only when the dept hosts that module. The HR
-        // endpoint is department-scoped on the backend, so we only call it
-        // for HR; other depts getting templates later = generalize here.
-        if (d.code.toUpperCase() === "HR" && d.modules.includes("templates")) {
-          listHrTemplates(false)
+        // Load templates for any dept that hosts the templates module (HR
+        // checklists, QA Quality & Training reports, …). Both the template and
+        // group endpoints are department-scoped on the backend, so we pass the
+        // dept code to keep HR's and QA's sections from bleeding into each
+        // other.
+        if (d.modules.includes("templates")) {
+          listHrTemplates(false, d.code)
             .then(setTemplates)
             .catch(() => setTemplates([]));
-          listHrTemplateGroups()
+          listHrTemplateGroups(d.code)
             .then(setTemplateGroups)
             .catch(() => setTemplateGroups([]));
         } else {
@@ -431,10 +408,11 @@ export default function DepartmentDetailPage() {
             just the default "Templates" section exactly as before, while an
             admin additionally sees "Non Servizz". Visibility is config-driven
             (group.minRole), never keyed off template names. */}
-        {dept.modules.includes("templates") && dept.code.toUpperCase() === "HR" && (() => {
+        {dept.modules.includes("templates") && (() => {
           // Bucket templates by their section code. A template whose section
-          // is unknown to this user or null falls back to the default 'hr'
-          // section so it can never silently disappear.
+          // is unknown to this user or null falls back to the first/default
+          // section so it can never silently disappear. (HR's default is 'hr';
+          // QA's is 'qa-reports' — both resolve via the same first-match rule.)
           const defaultGroupCode =
             templateGroups.find((g) => g.code === "hr")?.code ?? templateGroups[0]?.code;
           const byGroup = new Map<string, HrTemplate[]>();
@@ -492,8 +470,8 @@ export default function DepartmentDetailPage() {
                       >
                         <div className="flex items-start gap-3 mb-3">
                           <div
-                            className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 text-primary"
-                            style={{ background: `${color}12` }}
+                            className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
+                            style={{ background: `${color}12`, color }}
                           >
                             <span className="material-symbols-outlined text-[22px]">
                               {t.icon || "checklist"}
@@ -626,43 +604,9 @@ export default function DepartmentDetailPage() {
                 </section>
               )}
 
-              {/* QA placeholder reports — stubs, not wired to data yet. */}
-              {isQaDepartment(dept) && (
-                <section className="mb-10">
-                  <h2 className="text-xl font-bold font-headline text-on-surface tracking-tight mb-6">
-                    Reports
-                  </h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {QA_STUB_REPORTS.map((r) => (
-                      <div
-                        key={r.name}
-                        aria-disabled="true"
-                        title="Coming soon"
-                        className="prism-surface relative rounded-2xl p-6 overflow-hidden cursor-default select-none"
-                      >
-                        <div className="relative">
-                          <div className="flex items-start justify-between mb-3">
-                            <div className="w-12 h-12 bg-surface-container-high rounded-xl flex items-center justify-center text-on-surface-variant/70">
-                              <span className="material-symbols-outlined text-[22px]">
-                                {r.icon}
-                              </span>
-                            </div>
-                            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md bg-surface-container-high text-on-surface-variant/60">
-                              Coming soon
-                            </span>
-                          </div>
-                          <h5 className="font-bold text-on-surface text-sm mb-1">
-                            {r.name}
-                          </h5>
-                          <p className="text-[11px] text-on-surface-variant/50 leading-relaxed">
-                            Planned for Quality Assurance — not available yet.
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              )}
+              {/* QA reports are now real templates rendered by the Templates
+                  section above (the 'qa-reports' group). The old "Coming soon"
+                  stub cards were removed once the QA templates shipped. */}
 
               {dept.modules.includes("direct_reports") && otherReports.length > 0 && (
                 <section className="mb-10">
@@ -709,12 +653,11 @@ export default function DepartmentDetailPage() {
           // Templates section renders its own empty state (with "New template"
           // button), so when templates is enabled we never show the global
           // empty card.
-          const templatesEnabled = dept.modules.includes("templates") && dept.code.toUpperCase() === "HR";
+          const templatesEnabled = dept.modules.includes("templates");
           const bdfEnabled = dept.modules.includes("bdf-reports");
-          // QA / HR show their stub report cards, so they're never "empty".
-          const qaStubsVisible = isQaDepartment(dept);
+          // HR still shows its stub report cards, so it's never "empty".
           const hrStubsVisible = dept.code.toUpperCase() === "HR";
-          if (projectsVisible || directReportsVisible || templatesEnabled || bdfEnabled || qaStubsVisible || hrStubsVisible) return null;
+          if (projectsVisible || directReportsVisible || templatesEnabled || bdfEnabled || hrStubsVisible) return null;
           return (
             <div className="bg-white rounded-2xl editorial-shadow border border-on-surface-variant/5 p-10 text-center">
               <span className="material-symbols-outlined text-[40px] text-on-surface-variant/30 mb-2">

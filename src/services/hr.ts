@@ -76,9 +76,61 @@ async function requestWithEtag<T>(
 
 // ── Types ────────────────────────────────────────────────────────────────
 
-export type HrFieldType = "text" | "number" | "date" | "checkbox" | "select";
+export type HrFieldType =
+  | "text"
+  | "number"
+  | "date"
+  | "checkbox"
+  | "select"
+  // QA form/report types:
+  | "textarea" // multi-line free-text prose
+  | "grid"     // repeating table; columns live in `options.columns`
+  | "note";    // read-only descriptive / cross-reference block (no value)
 export type HrRecordStatus = "open" | "completed";
 export type HrFieldPlacement = "creation" | "detail";
+
+// ── Grid (repeating-table) field options ──────────────────────────────────
+// A 'grid' field stores its column definitions in `HrTemplateField.options` and
+// its rows in `HrRecordValue.valueJson` (a JSON array of {colKey: cellValue}).
+export type HrGridColumnType =
+  | "text" | "number" | "date" | "select" | "rag" | "percent";
+
+export interface HrGridColumn {
+  key: string;
+  label: string;
+  type: HrGridColumnType;
+  options?: string[]; // for select columns
+}
+
+export interface HrGridOptions {
+  help?: string;
+  columns: HrGridColumn[];
+}
+
+// A RAG cell value: a completion date plus a Red/Amber/Green status.
+export type HrRagStatus = "Red" | "Amber" | "Green";
+export interface HrRagValue {
+  status?: HrRagStatus | "";
+  date?: string;
+}
+
+// One grid row = a map of column key → cell value (string | number | HrRagValue).
+export type HrGridRow = Record<string, string | number | HrRagValue | null>;
+
+// Safely read a field's options as grid options (returns null when not a grid
+// or malformed). The backend stores `options` as jsonb, which Dapper/Npgsql
+// return to the client as a JSON *string* (not a parsed object), so we accept
+// either a string (parse it) or an already-parsed object.
+export function asGridOptions(options: unknown): HrGridOptions | null {
+  let o = options;
+  if (typeof o === "string") {
+    try { o = JSON.parse(o); } catch { return null; }
+  }
+  if (o && typeof o === "object" && Array.isArray((o as HrGridOptions).columns)) {
+    return o as HrGridOptions;
+  }
+  return null;
+}
 
 // A template "section" (HR / Non Servizz / …). The backend gates each section
 // by `minRole`; the list endpoint only returns sections the caller may see, so
@@ -130,6 +182,8 @@ export interface HrTemplateField {
 export interface HrTemplateSection {
   id: number;
   name: string;
+  // Optional intro prose rendered under the section heading (QA reports).
+  description: string | null;
   sortOrder: number;
 }
 
@@ -171,6 +225,9 @@ export interface HrRecordValue {
   valueNumber: number | null;
   valueDate: string | null;
   valueBool: boolean | null;
+  // Rows of a 'grid' field, as a JSON array string. Parse with JSON.parse to
+  // get HrGridRow[]. Null for non-grid fields.
+  valueJson: string | null;
   // Per-record N/A flag. Defaults to true (applicable). Server only accepts
   // false when the parent field has allowsNa = true.
   isApplicable: boolean;
@@ -196,13 +253,23 @@ export interface HrRecordListResponse {
 
 // ── Template endpoints ───────────────────────────────────────────────────
 
-export const listHrTemplates = (includeArchived = false) =>
-  request<HrTemplate[]>(`/Hr/templates?includeArchived=${includeArchived}`);
+// `departmentCode` scopes templates to one templates-hosting department (HR or
+// QA). Defaults to HR server-side when omitted, so callers that don't pass it
+// keep their current behaviour.
+export const listHrTemplates = (includeArchived = false, departmentCode?: string) => {
+  const qs = new URLSearchParams({ includeArchived: String(includeArchived) });
+  if (departmentCode) qs.set("departmentCode", departmentCode);
+  return request<HrTemplate[]>(`/Hr/templates?${qs}`);
+};
 
-// Sections the caller may see/manage (HR + any gated sections their role
-// unlocks, e.g. Non Servizz for admins).
-export const listHrTemplateGroups = () =>
-  request<HrTemplateGroup[]>("/Hr/template-groups");
+// Sections the caller may see/manage within a department (HR sections, or QA's
+// "Quality & Training Reports"). Scoped by departmentCode (defaults to HR).
+export const listHrTemplateGroups = (departmentCode?: string) => {
+  const suffix = departmentCode
+    ? `?departmentCode=${encodeURIComponent(departmentCode)}`
+    : "";
+  return request<HrTemplateGroup[]>(`/Hr/template-groups${suffix}`);
+};
 
 export const getHrTemplate = (id: number) =>
   requestWithEtag<HrTemplateDetail>(`/Hr/templates/${id}`);
@@ -313,17 +380,21 @@ export const reorderHrFields = (
 
 export const addHrSection = (
   templateId: number,
-  body: { name: string; sortOrder: number }
+  body: { name: string; sortOrder: number; description?: string | null }
 ) =>
   request<{ id: number }>(`/Hr/templates/${templateId}/sections`, {
     method: "POST",
     body: JSON.stringify(body),
   });
 
-export const updateHrSection = (sectionId: number, name: string) =>
+export const updateHrSection = (
+  sectionId: number,
+  name: string,
+  description?: string | null
+) =>
   request<void>(`/Hr/sections/${sectionId}`, {
     method: "PUT",
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, description: description ?? null }),
   });
 
 export const deleteHrSection = (sectionId: number) =>
@@ -392,6 +463,8 @@ export interface HrValuePatch {
   valueNumber?: number | null;
   valueDate?: string | null;
   valueBool?: boolean | null;
+  // For 'grid' fields: a JSON array string of the rows (HrGridRow[]).
+  valueJson?: string | null;
   // When omitted, the server defaults to true (applicable). Send false to
   // mark the field N/A for this record; server rejects with 400 when the
   // parent field doesn't have allowsNa.

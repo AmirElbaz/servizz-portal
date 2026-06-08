@@ -36,10 +36,13 @@ import {
   reorderHrSections,
   archiveHrTemplate,
   deleteHrTemplate,
+  asGridOptions,
   type HrTemplateDetail,
   type HrTemplateField,
   type HrTemplateSection,
   type HrFieldType,
+  type HrGridColumn,
+  type HrGridColumnType,
 } from "../../services/hr";
 
 // Template designer — sections and their fields.
@@ -219,6 +222,7 @@ export default function HrTemplateDesignerPage() {
 
   async function handleUpdateField(field: HrTemplateField, patch: Partial<HrTemplateField>) {
     try {
+      const nextOptions = patch.options !== undefined ? patch.options : field.options;
       await updateHrField(field.id, {
         label:        patch.label        ?? field.label,
         fieldType:    patch.fieldType    ?? field.fieldType,
@@ -228,8 +232,20 @@ export default function HrTemplateDesignerPage() {
         showOnCreate: patch.showOnCreate ?? field.showOnCreate,
         placement:    patch.placement    ?? field.placement,
         allowsNa:     patch.allowsNa     ?? field.allowsNa,
-        options:      patch.options      !== undefined ? patch.options      : field.options,
+        options:      nextOptions,
       });
+      // An options-only edit (the grid column editor reordering/adding/typing a
+      // column) doesn't change the form's structure, and the editor already
+      // reflects the change from its own local state. A full reload() here just
+      // causes a jarring flash. Patch the field in place instead and skip the
+      // refetch; structural edits (label/type/section/etc.) still reload.
+      const optionsOnly = Object.keys(patch).length === 1 && "options" in patch;
+      if (optionsOnly) {
+        setTemplate((t) =>
+          t ? { ...t, fields: t.fields.map((f) => (f.id === field.id ? { ...f, options: nextOptions } : f)) } : t
+        );
+        return;
+      }
       await reload();
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Save failed";
@@ -851,6 +867,7 @@ function CreationFormCard({
           className="px-3 py-1.5 bg-white rounded-lg border border-on-surface-variant/10 text-xs font-bold focus:outline-none focus:border-primary/30"
         >
           <option value="text">Text</option>
+          <option value="textarea">Long text</option>
           <option value="number">Number</option>
           <option value="date">Date</option>
           <option value="checkbox">Checkbox</option>
@@ -914,6 +931,7 @@ function CreationFieldRow({
         className="px-3 py-1.5 bg-white rounded-lg border border-on-surface-variant/10 text-xs font-bold focus:outline-none focus:border-primary/30"
       >
         <option value="text">Text</option>
+        <option value="textarea">Long text</option>
         <option value="number">Number</option>
         <option value="date">Date</option>
         <option value="checkbox">Checkbox</option>
@@ -1269,25 +1287,45 @@ function SortableFieldRow({
         </select>
         <select
           value={field.fieldType}
-          onChange={(e) => onUpdate({ fieldType: e.target.value as HrFieldType })}
+          onChange={(e) => {
+            const ft = e.target.value as HrFieldType;
+            // Reset options to match the new type so a field can't carry
+            // orphaned config (e.g. grid columns left on a text field). Grid
+            // keeps existing columns if it was already a grid, else starts empty.
+            const nextOptions =
+              ft === "grid"
+                ? (asGridOptions(field.options) ?? { columns: [] })
+                : null;
+            onUpdate({ fieldType: ft, options: nextOptions });
+          }}
           className="px-3 py-1.5 bg-white rounded-lg border border-on-surface-variant/10 text-xs font-bold focus:outline-none focus:border-primary/30"
         >
           <option value="text">Text</option>
+          <option value="textarea">Long text</option>
           <option value="number">Number</option>
           <option value="date">Date</option>
           <option value="checkbox">Checkbox</option>
           <option value="select">Select</option>
+          <option value="grid">Table (grid)</option>
+          <option value="note">Note (read-only)</option>
         </select>
-        <label className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-on-surface-variant/70">
-          <input
-            type="checkbox"
-            checked={field.isRequired}
-            onChange={(e) => onUpdate({ isRequired: e.target.checked })}
-            className="accent-primary"
-          />
-          Required
-        </label>
-        <AllowsNaToggle field={field} onChange={onToggleAllowsNa} />
+        {/* "Required" is meaningless for a read-only note. "Allows N/A" is
+            meaningless for notes and grids (N/A isn't rendered for them on the
+            record page), so hide those controls to avoid silent no-ops. */}
+        {field.fieldType !== "note" && (
+          <label className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-on-surface-variant/70">
+            <input
+              type="checkbox"
+              checked={field.isRequired}
+              onChange={(e) => onUpdate({ isRequired: e.target.checked })}
+              className="accent-primary"
+            />
+            Required
+          </label>
+        )}
+        {field.fieldType !== "note" && field.fieldType !== "grid" && (
+          <AllowsNaToggle field={field} onChange={onToggleAllowsNa} />
+        )}
         <button
           type="button"
           onClick={onDelete}
@@ -1296,6 +1334,164 @@ function SortableFieldRow({
         >
           <span className="material-symbols-outlined text-[18px]">delete</span>
         </button>
+      </div>
+
+      {/* Grid fields get an inline column editor (full-width, wraps below the
+          row). Editing options goes through the same updateHrField path, so
+          it's design-locked once the template has records. */}
+      {field.fieldType === "grid" && (
+        <div className="basis-full w-full mt-2">
+          <GridColumnsEditor field={field} onUpdate={onUpdate} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Grid column editor ────────────────────────────────────────────────────
+// Lets an admin define a grid field's columns (label, type, and — for select
+// columns — the option list) plus an optional help line. Commits the whole
+// { help, columns } object to the field's `options` on each structural change
+// or input blur. Column `key` is slugified from the label on creation and kept
+// stable afterwards so existing row data keeps matching.
+function GridColumnsEditor({
+  field,
+  onUpdate,
+}: {
+  field: HrTemplateField;
+  onUpdate: (p: Partial<HrTemplateField>) => void;
+}) {
+  const parsed = asGridOptions(field.options);
+  const [help, setHelp] = useState(parsed?.help ?? "");
+  const [columns, setColumns] = useState<HrGridColumn[]>(parsed?.columns ?? []);
+
+  useEffect(() => {
+    const p = asGridOptions(field.options);
+    setHelp(p?.help ?? "");
+    setColumns(p?.columns ?? []);
+  }, [field.id]); // re-sync when the row is swapped for a different field
+
+  function commit(nextCols: HrGridColumn[], nextHelp: string) {
+    onUpdate({ options: { help: nextHelp || undefined, columns: nextCols } });
+  }
+
+  function slugKey(label: string, taken: Set<string>): string {
+    let base = label.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+    if (!base) base = "col";
+    let key = base;
+    let n = 2;
+    while (taken.has(key)) key = `${base}_${n++}`;
+    return key;
+  }
+
+  function addColumn() {
+    const taken = new Set(columns.map((c) => c.key));
+    const next = [...columns, { key: slugKey(`col_${columns.length + 1}`, taken), label: "", type: "text" as HrGridColumnType }];
+    setColumns(next);
+    commit(next, help);
+  }
+
+  function updateColumn(idx: number, patch: Partial<HrGridColumn>) {
+    const next = columns.map((c, i) => (i === idx ? { ...c, ...patch } : c));
+    setColumns(next);
+    commit(next, help);
+  }
+
+  function removeColumn(idx: number) {
+    const next = columns.filter((_, i) => i !== idx);
+    setColumns(next);
+    commit(next, help);
+  }
+
+  function moveColumn(idx: number, dir: -1 | 1) {
+    const j = idx + dir;
+    if (j < 0 || j >= columns.length) return;
+    const next = columns.slice();
+    [next[idx], next[j]] = [next[j], next[idx]];
+    setColumns(next);
+    commit(next, help);
+  }
+
+  const cellCls =
+    "px-2 py-1 rounded-md text-xs border border-on-surface-variant/15 bg-white focus:outline-none focus:border-primary/30";
+
+  return (
+    <div className="rounded-lg border border-primary/15 bg-primary/[0.03] p-3">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-primary/80 mb-2">
+        Table columns
+      </p>
+
+      <div className="flex flex-col gap-1.5">
+        {columns.length === 0 && (
+          <p className="text-[11px] text-on-surface-variant/50 italic">No columns yet — add the first one.</p>
+        )}
+        {columns.map((c, i) => (
+          <div key={c.key} className="flex items-center gap-1.5 flex-wrap">
+            <div className="flex flex-col">
+              <button type="button" onClick={() => moveColumn(i, -1)} disabled={i === 0}
+                className="text-on-surface-variant/40 hover:text-on-surface-variant disabled:opacity-20 leading-none" aria-label="Move up">
+                <span className="material-symbols-outlined text-[14px]">keyboard_arrow_up</span>
+              </button>
+              <button type="button" onClick={() => moveColumn(i, 1)} disabled={i === columns.length - 1}
+                className="text-on-surface-variant/40 hover:text-on-surface-variant disabled:opacity-20 leading-none" aria-label="Move down">
+                <span className="material-symbols-outlined text-[14px]">keyboard_arrow_down</span>
+              </button>
+            </div>
+            <input
+              type="text"
+              defaultValue={c.label}
+              placeholder="Column label"
+              onBlur={(e) => { if (e.target.value !== c.label) updateColumn(i, { label: e.target.value }); }}
+              className={`${cellCls} flex-1 min-w-[140px]`}
+            />
+            <select
+              value={c.type}
+              onChange={(e) => updateColumn(i, { type: e.target.value as HrGridColumnType })}
+              className={`${cellCls} font-bold`}
+            >
+              <option value="text">Text</option>
+              <option value="number">Number</option>
+              <option value="percent">Percent</option>
+              <option value="date">Date</option>
+              <option value="select">Select</option>
+              <option value="rag">RAG (status + date)</option>
+            </select>
+            {c.type === "select" && (
+              <input
+                type="text"
+                defaultValue={(c.options ?? []).join(", ")}
+                placeholder="Options, comma-separated"
+                onBlur={(e) => {
+                  const opts = e.target.value.split(",").map((s) => s.trim()).filter(Boolean);
+                  updateColumn(i, { options: opts });
+                }}
+                className={`${cellCls} flex-1 min-w-[160px]`}
+              />
+            )}
+            <button type="button" onClick={() => removeColumn(i)} aria-label="Remove column"
+              className="text-on-surface-variant/40 hover:text-error p-0.5">
+              <span className="material-symbols-outlined text-[16px]">close</span>
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex items-center gap-2 mt-2 flex-wrap">
+        <button
+          type="button"
+          onClick={addColumn}
+          className="inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:bg-primary/5 px-2 py-1 rounded-md"
+        >
+          <span className="material-symbols-outlined text-[14px]">add</span>
+          Add column
+        </button>
+        <input
+          type="text"
+          defaultValue={help}
+          placeholder="Optional help text shown above the table"
+          onBlur={(e) => { if (e.target.value !== help) { setHelp(e.target.value); commit(columns, e.target.value); } }}
+          className={`${cellCls} flex-1 min-w-[200px]`}
+        />
       </div>
     </div>
   );

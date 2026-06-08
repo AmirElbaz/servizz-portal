@@ -64,6 +64,13 @@
   --color-success-container: #dcebe1;
   --color-on-success-container: #1f4a39;
 
+  /* RAG status (Red / Amber / Green) for QA report action-plan grids. Tuned to
+     sit with the muted error/success set rather than shout pure traffic-light
+     hues, while staying unambiguous as a status chip. */
+  --color-rag-red: #c0413c;
+  --color-rag-amber: #c07a18;
+  --color-rag-green: #3f8a6b;
+
   --font-headline: "Public Sans", sans-serif;
   --font-body: "Inter", sans-serif;
   --font-label: "Inter", sans-serif;
@@ -81,6 +88,18 @@
 }
 
 @layer utilities {
+  /* Hide the native number spinner on percent grid cells so the trailing "%"
+     affix doesn't overlap the up/down arrows (QA report grids). */
+  .grid-no-spinner::-webkit-outer-spin-button,
+  .grid-no-spinner::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .grid-no-spinner {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+
   /* ── Typography tokens ── */
   /* Canonical eyebrow label. One source of truth for all uppercase
      small-label lockups across login, dashboard, detail pages, admin. */

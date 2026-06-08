@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import DashboardLayout from "../../components/layout/DashboardLayout";
 import Skeleton from "../../components/admin/Skeleton";
 import { ConcurrencyError } from "../../services/admin";
@@ -11,11 +11,15 @@ import {
   updateHrRecord,
   exportHrRecordPdf,
   exportHrRecordExcel,
+  asGridOptions,
   type HrRecordDetail,
   type HrTemplateDetail,
   type HrTemplateField,
   type HrRecordStatus,
   type HrValuePatch,
+  type HrGridColumn,
+  type HrGridRow,
+  type HrRagValue,
 } from "../../services/hr";
 
 // Record detail — the "fill the checklist" page. Section-grouped fields,
@@ -50,6 +54,7 @@ export default function HrRecordDetailPage() {
   const isAdmin = roleAtLeast(user?.role, "centrecom_user");
   const tid = Number(templateId);
   const rid = Number(recordId);
+  const navigate = useNavigate();
 
   const [template, setTemplate] = useState<HrTemplateDetail | null>(null);
   const [record, setRecord] = useState<HrRecordDetail | null>(null);
@@ -91,6 +96,7 @@ export default function HrRecordDetailPage() {
             valueNumber: v.valueNumber,
             valueDate: v.valueDate,
             valueBool: v.valueBool,
+            valueJson: v.valueJson,
             isApplicable: v.isApplicable,
           });
         }
@@ -106,7 +112,7 @@ export default function HrRecordDetailPage() {
       return {
         creation: [] as HrTemplateField[],
         details: [] as HrTemplateField[],
-        grouped: [] as Array<{ name: string; fields: HrTemplateField[] }>,
+        grouped: [] as Array<{ name: string; description: string | null; fields: HrTemplateField[] }>,
       };
     }
     // Creation fields (placement='creation') — asked at record creation, but
@@ -135,10 +141,10 @@ export default function HrRecordDetailPage() {
     const ordered = template.sections
       .slice()
       .sort((a, b) => a.sortOrder - b.sortOrder)
-      .map((s) => ({ name: s.name, fields: byId.get(s.id) ?? [] }))
+      .map((s) => ({ name: s.name, description: s.description, fields: byId.get(s.id) ?? [] }))
       .filter((g) => g.fields.length > 0);
     if (byId.has("general")) {
-      ordered.push({ name: "General", fields: byId.get("general")! });
+      ordered.push({ name: "General", description: null, fields: byId.get("general")! });
     }
     return { creation, details, grouped: ordered };
   }, [template]);
@@ -233,6 +239,7 @@ export default function HrRecordDetailPage() {
           valueNumber: v.valueNumber ?? null,
           valueDate: v.valueDate ?? null,
           valueBool: v.valueBool ?? null,
+          valueJson: v.valueJson ?? null,
           // null = "don't change" on the server; we always send the local
           // state explicitly so toggling N/A and toggling back both round-
           // trip correctly.
@@ -352,13 +359,21 @@ export default function HrRecordDetailPage() {
   return (
     <DashboardLayout>
       <div className="mb-6">
-        <Link
-          to={`/department/${deptCode}/templates/${tid}/records`}
-          className="inline-flex items-center gap-1 text-xs font-semibold text-on-surface-variant/70 hover:text-primary transition-colors no-underline mb-3"
+        {/* Guarded back-navigation: this app uses a non-data <BrowserRouter>,
+            so React Router's useBlocker isn't available. We confirm-on-dirty
+            for the in-page Back link (the most common in-app exit). Full tab
+            close / reload is still covered by the beforeunload handler. */}
+        <button
+          type="button"
+          onClick={() => {
+            if (isDirty && !window.confirm("You have unsaved changes. Leave without saving?")) return;
+            navigate(`/department/${deptCode}/templates/${tid}/records`);
+          }}
+          className="inline-flex items-center gap-1 text-xs font-semibold text-on-surface-variant/70 hover:text-primary transition-colors mb-3"
         >
           <span className="material-symbols-outlined text-[14px]">arrow_back</span>
           Back to records
-        </Link>
+        </button>
       </div>
 
       {concurrency && (
@@ -547,7 +562,7 @@ export default function HrRecordDetailPage() {
       )}
 
       {/* ── Sections ── */}
-      {sections.grouped.map(({ name, fields }) => {
+      {sections.grouped.map(({ name, description, fields }) => {
         // Same N/A-aware progress as the header ring, scoped to this section.
         const applicableChecks = fields.filter(
           (f) => f.fieldType === "checkbox" && !isMarkedNa(values.get(f.id))
@@ -555,12 +570,19 @@ export default function HrRecordDetailPage() {
         const done = applicableChecks.filter((f) => values.get(f.id)?.valueBool === true).length;
         return (
           <div key={name} className="bg-white rounded-2xl border border-on-surface-variant/5 p-6 mb-5">
-            <div className="flex items-center justify-between mb-4">
-              <p className="text-sm font-bold text-on-surface">
-                {name}
-              </p>
+            <div className="flex items-start justify-between mb-4 gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-on-surface">
+                  {name}
+                </p>
+                {description && (
+                  <p className="text-[12px] text-on-surface-variant/60 leading-relaxed mt-1">
+                    {description}
+                  </p>
+                )}
+              </div>
               {applicableChecks.length > 0 && (
-                <span className="text-[11px] font-bold text-primary tabular-nums">
+                <span className="text-[11px] font-bold text-primary tabular-nums shrink-0">
                   {done}/{applicableChecks.length}
                 </span>
               )}
@@ -627,6 +649,7 @@ function isFieldFilled(field: HrTemplateField, v: HrValuePatch | undefined): boo
   if (!v) return false;
   switch (field.fieldType) {
     case "text":
+    case "textarea":
     case "select":
       return !!(v.valueText && v.valueText.trim() !== "");
     case "number":
@@ -635,6 +658,16 @@ function isFieldFilled(field: HrTemplateField, v: HrValuePatch | undefined): boo
       return !!v.valueDate;
     case "checkbox":
       return v.valueBool === true;
+    case "grid":
+      // "Filled" = at least one row entered.
+      try {
+        const rows = v.valueJson ? JSON.parse(v.valueJson) : [];
+        return Array.isArray(rows) && rows.length > 0;
+      } catch {
+        return false;
+      }
+    case "note":
+      return true; // read-only; never blocks
   }
   return false;
 }
@@ -681,6 +714,20 @@ function FieldInput({
   // chip switches to "Applicable" to invite toggling back.
   const markedNa = value?.isApplicable === false;
   const inputDisabled = disabled || markedNa;
+
+  // Read-only descriptive / cross-reference block. No value, no N/A.
+  if (field.fieldType === "note") {
+    return (
+      <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-surface-container-low/40 border border-on-surface-variant/10">
+        <span aria-hidden="true" className="material-symbols-outlined text-[16px] text-on-surface-variant/50 mt-0.5 shrink-0">
+          info
+        </span>
+        <p className="text-[12px] text-on-surface-variant/70 leading-relaxed italic">
+          {field.label}
+        </p>
+      </div>
+    );
+  }
 
   if (field.fieldType === "checkbox") {
     const checked = value?.valueBool === true;
@@ -828,7 +875,311 @@ function FieldInput({
     );
   }
 
+  if (field.fieldType === "textarea") {
+    return (
+      <div>
+        {header}
+        <textarea
+          rows={4}
+          value={markedNa ? "" : value?.valueText ?? ""}
+          disabled={inputDisabled}
+          placeholder={markedNa ? "Not applicable" : undefined}
+          onChange={(e) => onPatch({ valueText: e.target.value || null, valueNumber: null, valueDate: null, valueBool: null, valueJson: null })}
+          className={`${inputClass} resize-y leading-relaxed`}
+          aria-invalid={hasError || undefined}
+        />
+        {hasError && !markedNa && <ErrorHint label={field.label} />}
+      </div>
+    );
+  }
+
+  if (field.fieldType === "grid") {
+    return (
+      <div>
+        <span className={labelClass}>{field.label}</span>
+        <GridFieldInput field={field} value={value} onPatch={onPatch} disabled={disabled} />
+      </div>
+    );
+  }
+
   return null;
+}
+
+// ── Grid (repeating-table) field editor ──────────────────────────────────
+// Renders the field's columns as a table the user can add/remove rows in.
+// Rows are held in a LOCAL buffer with a stable per-row id (`__rid`) so React
+// reconciles by identity, not array index — deleting a middle row can't shift
+// a focused input onto the wrong row's value. The buffer serializes to the
+// parent's valueJson on every change (with __rid stripped so stored data stays
+// clean); the page-level Save then flushes it to the server.
+type GridRowWithId = HrGridRow & { __rid: string };
+
+function newRowId(): string {
+  // crypto.randomUUID is available in all evergreen browsers this app targets;
+  // fall back to a random string just in case.
+  try { return crypto.randomUUID(); } catch { return `r_${Math.random().toString(36).slice(2)}`; }
+}
+
+function seedGridRows(json: string | null | undefined): GridRowWithId[] {
+  if (!json) return [];
+  try {
+    const parsed = JSON.parse(json);
+    if (!Array.isArray(parsed)) return [];
+    return (parsed as HrGridRow[]).map((r) => ({ ...r, __rid: newRowId() }));
+  } catch {
+    return [];
+  }
+}
+
+function GridFieldInput({
+  field,
+  value,
+  onPatch,
+  disabled,
+}: {
+  field: HrTemplateField;
+  value: HrValuePatch | undefined;
+  onPatch: (p: Partial<HrValuePatch>) => void;
+  disabled: boolean;
+}) {
+  const grid = asGridOptions(field.options);
+  const columns: HrGridColumn[] = grid?.columns ?? [];
+
+  // Seed ONCE from the saved JSON. We deliberately don't re-seed on every
+  // value change — the parent's valueJson reflects our own commits, and
+  // re-seeding would regenerate ids (and drop focus) on each keystroke. A full
+  // page reload (e.g. after a 412) remounts this component and re-seeds.
+  const [rows, setRows] = useState<GridRowWithId[]>(() => seedGridRows(value?.valueJson));
+
+  function commit(next: GridRowWithId[]) {
+    setRows(next);
+    const clean = next.map(({ __rid, ...rest }) => { void __rid; return rest; });
+    onPatch({
+      valueJson: clean.length ? JSON.stringify(clean) : null,
+      valueText: null, valueNumber: null, valueDate: null, valueBool: null,
+    });
+  }
+
+  function setCell(rid: string, key: string, cell: HrGridRow[string]) {
+    commit(rows.map((r) => (r.__rid === rid ? { ...r, [key]: cell } : r)));
+  }
+  function addRow() { commit([...rows, { __rid: newRowId() }]); }
+  function removeRow(rid: string) { commit(rows.filter((r) => r.__rid !== rid)); }
+
+  if (columns.length === 0) {
+    return (
+      <p className="text-[12px] text-on-surface-variant/50 italic mt-1">
+        This grid has no columns configured.
+      </p>
+    );
+  }
+
+  const cellInput =
+    "w-full px-2 py-1.5 rounded-md text-[13px] border border-on-surface-variant/10 bg-surface-container-high/40 focus:outline-none focus:border-primary/30 focus:ring-1 focus:ring-primary/20 focus:bg-white disabled:opacity-60";
+
+  // Sticky first-column treatment: the `#` column stays pinned while the table
+  // scrolls right (8-col grids overflow on a laptop), so row context is never
+  // lost. The data cells in that column share the same left:0 + bg.
+  const stickyCol = "sticky left-0 z-10 bg-white";
+
+  return (
+    <div className="mt-1.5 overflow-x-auto rounded-xl border border-on-surface-variant/10">
+      {grid?.help && (
+        <p className="px-3 py-2 text-[11px] text-on-surface-variant/60 italic border-b border-on-surface-variant/10 bg-surface-container-low/30">
+          {grid.help}
+        </p>
+      )}
+      <table className="w-full border-collapse" style={{ minWidth: Math.max(480, columns.length * 150) }}>
+        <thead>
+          <tr className="bg-surface-container-high/60">
+            <th scope="col" className={`${stickyCol} bg-surface-container-high w-10 px-2 py-2 text-[10px] font-bold uppercase tracking-[0.14em] text-on-surface-variant/50 text-left`}>#</th>
+            {columns.map((c) => (
+              <th key={c.key} scope="col" className="px-2 py-2 text-[10px] font-bold uppercase tracking-[0.14em] text-on-surface-variant/60 text-left whitespace-nowrap">
+                {c.label}
+              </th>
+            ))}
+            {!disabled && <th scope="col" className="w-10 px-2 py-2"><span className="sr-only">Actions</span></th>}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 ? (
+            <tr>
+              <td colSpan={columns.length + 2} className="px-3 py-5 text-center text-[12px] text-on-surface-variant/40 italic">
+                No rows yet{!disabled && " — click “Add row” to start"}.
+              </td>
+            </tr>
+          ) : (
+            rows.map((row, ri) => (
+              <tr key={row.__rid} className="border-t border-on-surface-variant/8 hover:bg-surface-container-low/30 group/row">
+                <td className={`${stickyCol} group-hover/row:bg-surface-container-low px-2 py-1.5 text-[12px] font-semibold text-on-surface-variant/50 tabular-nums align-top pt-3`}>
+                  {ri + 1}
+                </td>
+                {columns.map((c) => (
+                  <td key={c.key} className="px-2 py-1.5 align-top">
+                    <GridCellInput
+                      column={c}
+                      rowNum={ri + 1}
+                      value={row[c.key]}
+                      disabled={disabled}
+                      inputClass={cellInput}
+                      onChange={(cell) => setCell(row.__rid, c.key, cell)}
+                    />
+                  </td>
+                ))}
+                {!disabled && (
+                  <td className="px-1 py-1.5 align-top pt-2">
+                    <button
+                      type="button"
+                      onClick={() => removeRow(row.__rid)}
+                      title="Remove row"
+                      aria-label={`Remove row ${ri + 1}`}
+                      className="text-on-surface-variant/40 hover:text-error hover:bg-error/5 rounded p-1 transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">delete</span>
+                    </button>
+                  </td>
+                )}
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+      {!disabled && (
+        <button
+          type="button"
+          onClick={addRow}
+          className="w-full px-3 py-2 text-[12px] font-bold text-primary hover:bg-primary/5 border-t border-on-surface-variant/10 inline-flex items-center justify-center gap-1 transition-colors"
+        >
+          <span className="material-symbols-outlined text-[16px]">add</span>
+          Add row
+        </button>
+      )}
+    </div>
+  );
+}
+
+// One cell editor, dispatched on the column type. Stores primitives for
+// text/number/date/select/percent and a { status, date } object for RAG.
+// `rowNum` is used only to build accessible labels.
+const RAG_TONE: Record<string, { bg: string; fg: string }> = {
+  Red:   { bg: "var(--color-rag-red)",   fg: "#fff" },
+  Amber: { bg: "var(--color-rag-amber)", fg: "#fff" },
+  Green: { bg: "var(--color-rag-green)", fg: "#fff" },
+};
+
+function GridCellInput({
+  column,
+  rowNum,
+  value,
+  disabled,
+  inputClass,
+  onChange,
+}: {
+  column: HrGridColumn;
+  rowNum: number;
+  value: HrGridRow[string];
+  disabled: boolean;
+  inputClass: string;
+  onChange: (cell: HrGridRow[string]) => void;
+}) {
+  if (column.type === "rag") {
+    const rag = (value && typeof value === "object" ? value : {}) as HrRagValue;
+    const tone = rag.status ? RAG_TONE[rag.status] : undefined;
+    // Status + completion date read as ONE logical value: grouped in a bordered
+    // mini-cell, the status as a filled colour chip, the date clearly labelled.
+    return (
+      <div className="flex flex-col gap-1 min-w-[150px] rounded-lg border border-on-surface-variant/12 p-1.5 bg-white">
+        <select
+          value={rag.status ?? ""}
+          disabled={disabled}
+          aria-label={`RAG status, row ${rowNum}`}
+          onChange={(e) => onChange({ ...rag, status: (e.target.value || "") as HrRagValue["status"] })}
+          className={`w-full px-2 py-1 rounded-md text-[12px] font-bold border focus:outline-none focus:ring-1 focus:ring-primary/30 disabled:opacity-60 ${tone ? "border-transparent" : "border-on-surface-variant/15 text-on-surface-variant/60"}`}
+          style={tone ? { background: tone.bg, color: tone.fg } : undefined}
+        >
+          <option value="" style={{ color: "#1a2024" }}>— status —</option>
+          <option value="Red" style={{ color: "#1a2024" }}>Red</option>
+          <option value="Amber" style={{ color: "#1a2024" }}>Amber</option>
+          <option value="Green" style={{ color: "#1a2024" }}>Green</option>
+        </select>
+        <label className="flex flex-col gap-0.5">
+          <span className="text-[9px] font-semibold uppercase tracking-wider text-on-surface-variant/45 px-0.5">Completion date</span>
+          <input
+            type="date"
+            value={rag.date ?? ""}
+            disabled={disabled}
+            aria-label={`RAG completion date, row ${rowNum}`}
+            onChange={(e) => onChange({ ...rag, date: e.target.value || undefined })}
+            className="w-full px-2 py-1 rounded-md text-[12px] border border-on-surface-variant/10 bg-surface-container-high/40 focus:outline-none focus:ring-1 focus:ring-primary/20 focus:bg-white disabled:opacity-60"
+          />
+        </label>
+      </div>
+    );
+  }
+
+  if (column.type === "select") {
+    const opts = column.options ?? [];
+    return (
+      <select
+        value={typeof value === "string" ? value : ""}
+        disabled={disabled}
+        aria-label={`${column.label}, row ${rowNum}`}
+        onChange={(e) => onChange(e.target.value || null)}
+        className={inputClass}
+      >
+        <option value="">—</option>
+        {opts.map((o) => (
+          <option key={o} value={o}>{o}</option>
+        ))}
+      </select>
+    );
+  }
+
+  if (column.type === "number" || column.type === "percent") {
+    const isPct = column.type === "percent";
+    return (
+      <div className="relative">
+        <input
+          type="number"
+          value={typeof value === "number" ? value : value == null ? "" : String(value)}
+          disabled={disabled}
+          aria-label={`${column.label}, row ${rowNum}`}
+          onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
+          // Percent inputs hide the native spinner so the trailing "%" affix
+          // doesn't collide with the up/down arrows (Chrome).
+          className={`${inputClass} text-right tabular-nums ${isPct ? "pr-6 grid-no-spinner" : ""}`}
+        />
+        {isPct && (
+          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[12px] text-on-surface-variant/50 pointer-events-none">%</span>
+        )}
+      </div>
+    );
+  }
+
+  if (column.type === "date") {
+    return (
+      <input
+        type="date"
+        value={typeof value === "string" ? value : ""}
+        disabled={disabled}
+        aria-label={`${column.label}, row ${rowNum}`}
+        onChange={(e) => onChange(e.target.value || null)}
+        className={inputClass}
+      />
+    );
+  }
+
+  // text (default)
+  return (
+    <input
+      type="text"
+      value={typeof value === "string" ? value : value == null ? "" : String(value)}
+      disabled={disabled}
+      aria-label={`${column.label}, row ${rowNum}`}
+      onChange={(e) => onChange(e.target.value || null)}
+      className={inputClass}
+    />
+  );
 }
 
 // Small toggle pill placed next to a togglable field. When on (markedNa),
