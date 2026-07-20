@@ -981,6 +981,26 @@ export default function HrRecordDetailPage() {
           floating Save button below takes over. */}
       <div ref={headerSentinelRef} aria-hidden="true" className="h-0" />
 
+      {/* One shared master template serves every project — spell that out once,
+          up front. Users kept reading the superset of sections as per-project
+          mistakes ("extra sections are misplaced", "why is this a table, ours
+          is a graph") — Amir 2026-07-20. */}
+      {isOpsReport && (
+        <div className="flex items-start gap-2.5 rounded-xl border border-primary/15 bg-primary/5 px-4 py-3 mb-4">
+          <span aria-hidden="true" className="material-symbols-outlined text-[18px] text-primary/70 mt-0.5 shrink-0">
+            info
+          </span>
+          <p className="text-[12px] leading-relaxed text-on-surface-variant/80">
+            This is the <b>shared master template</b> — one report structure serves every project.
+            Sections that don&rsquo;t apply to your project can be switched off and simply don&rsquo;t
+            print; extra sections here are not misplaced — they belong to other projects. Empty
+            tables, blank columns and unfilled comments are dropped from the PDF automatically, and
+            the &ldquo;Chart type&rdquo; / layout selectors let each project present the same section
+            as a table, a graph, or both.
+          </p>
+        </div>
+      )}
+
       {isAdmin && projSections.length > 0 && (
         <p className="text-[11px] text-on-surface-variant/50 mb-3 px-1">
           Tick a section to include it in this project's report; untick to leave it out.
@@ -1613,7 +1633,35 @@ const PALETTE_PRESETS: Record<string, { colors: string[]; hint: string }> = {
   },
 };
 
-function FieldInput({
+// Every field type shows its designer "help" note as a small grey line under
+// the control (grids are excluded — they render their own help strip above the
+// table). The help text is where the master-template mechanics are explained
+// ("optional — dropped from the report when blank", what each chart-type
+// choice does, …), so it must reach the people FILLING the report, not just
+// the template designer. Before this wrapper only grids surfaced it.
+function FieldInput(props: Parameters<typeof FieldInputBody>[0]) {
+  const { field } = props;
+  let help: string | null = null;
+  if (field.fieldType !== "grid") {
+    try {
+      const o = typeof field.options === "string" ? JSON.parse(field.options) : field.options;
+      const h = o && typeof o === "object" && !Array.isArray(o) ? (o as { help?: unknown }).help : null;
+      if (typeof h === "string" && h.trim().length > 0) help = h;
+    } catch {
+      /* malformed options → no help note */
+    }
+  }
+  const body = <FieldInputBody {...props} />;
+  if (!help) return body;
+  return (
+    <div>
+      {body}
+      <p className="mt-1 px-1 text-[11px] leading-relaxed text-on-surface-variant/60">{help}</p>
+    </div>
+  );
+}
+
+function FieldInputBody({
   field,
   value,
   onPatch,
