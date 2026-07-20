@@ -280,6 +280,18 @@
     color: #1a2024;
     white-space: nowrap;
   }
+  /* Sticky identifier column for wide month-grid report tables (Attrition).
+     Pins col 0 during horizontal scroll; opaque bg so scrolled numbers don't
+     bleed through. */
+  .tbl-sticky-0 {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--color-surface-container-lowest);
+  }
+  .tbl-tr:hover .tbl-sticky-0 {
+    background: color-mix(in srgb, var(--color-surface-container-low) 50%, var(--color-surface-container-lowest));
+  }
 
   .scrollbar-hide::-webkit-scrollbar { display: none; }
   .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
@@ -430,3 +442,12 @@
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
   vertical-align: middle;
 }
+
+/* Rich-text narrative editor (RichTextField) empty-state placeholder. */
+.rte-content:empty::before {
+  content: attr(data-placeholder);
+  color: var(--color-on-surface-variant, #6b7682);
+  opacity: 0.5;
+  pointer-events: none;
+}
+.rte-content mark { background-color: #fde68a; }

@@ -52,7 +52,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   return (
     <div className="bg-surface text-on-surface min-h-screen flex flex-col">
       <TopNavBar />
-      <main className="flex-1 w-full pt-20 sm:pt-28 pb-10 sm:pb-16 px-4 sm:px-6 lg:px-12 mx-auto max-w-7xl">
+      <main className="flex-1 w-full pt-20 sm:pt-28 pb-10 sm:pb-16 px-4 sm:px-6 lg:px-12 mx-auto max-w-[1800px]">
         <div className="flex flex-col lg:flex-row gap-6">
           {/* Desktop sidebar (inline column) */}
           <aside className="hidden lg:block w-60 shrink-0">

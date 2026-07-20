@@ -66,6 +66,9 @@ export interface SummaryData {
   abandoned: number;
   // PCA (Percentage of Calls Answered) — same math as legacy "Service Level".
   pca: number;
+  // GOS (% answered within 90s) and AHT (avg handling seconds).
+  gos: number;
+  aht: number;
 }
 
 export function fetchRawData(

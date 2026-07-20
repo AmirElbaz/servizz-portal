@@ -63,6 +63,10 @@ const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov
 
 type Mode = "trend" | "comparison";
 type View = "monthly" | "weekly";
+// Hours window applied to every series. "all" = entire day (default);
+// "working" = peak hours only (each project's working-hours window). The 2025
+// static lane has no time-of-day, so it stays all-hours in either setting.
+type Hours = "all" | "working";
 type MetricKey = "offered" | "answered" | "auto";
 
 const METRICS: { key: MetricKey; label: string; color: string; icon: string }[] = [
@@ -133,6 +137,7 @@ export default function IvrTrendComparisonPreviewPage() {
   const [project, setProject] = useState<string>(projectCode ?? "all");
   const [mode, setMode] = useState<Mode>("trend");
   const [view, setView] = useState<View>("monthly");
+  const [hours, setHours] = useState<Hours>("all");
   const [trendYear, setTrendYear] = useState<number>(curYear);
   // Comparison periods. `unit` is a month (1-12) in monthly view, an ISO week
   // number in weekly view — reinterpreted whenever the view toggles.
@@ -258,9 +263,9 @@ export default function IvrTrendComparisonPreviewPage() {
         .map((y) => anchor - y)
         .filter((off) => off >= 1 && off <= 3)
         .map((off) => `yoy${off}` as IvrComparison);
-      params = { project: project === "all" ? null : project, year: anchor, comparisons, granularity };
+      params = { project: project === "all" ? null : project, year: anchor, comparisons, granularity, hours };
     } else {
-      params = { project: project === "all" ? null : project, year: trendYear, granularity };
+      params = { project: project === "all" ? null : project, year: trendYear, granularity, hours };
     }
 
     fetchIvrTrendComparison(params)
@@ -271,7 +276,7 @@ export default function IvrTrendComparisonPreviewPage() {
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [project, mode, view, trendYear, aYear, bYear]);
+  }, [project, mode, view, hours, trendYear, aYear, bYear]);
 
   const currentLane: IvrLaneData | null = useMemo(() => {
     if (!data) return null;
@@ -407,6 +412,7 @@ export default function IvrTrendComparisonPreviewPage() {
         projectName: projectLabel,
         projectLogo,
         projectAccent: plate.bg,
+        hours,
         chartImages,
       });
     } catch (err) {
@@ -534,6 +540,21 @@ export default function IvrTrendComparisonPreviewPage() {
                 onChange={changeView}
                 ariaLabel="Time granularity"
                 options={[{ value: "monthly", label: "Monthly" }, { value: "weekly", label: "Weekly" }]}
+              />
+            </div>
+
+            {/* Hours toggle — restricts every series (Offered / Answered / Auto)
+                to peak (working-hours) or the whole day. 2025 static lane stays
+                all-hours (no time-of-day in that source). */}
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 block mb-1.5">
+                Hours
+              </label>
+              <Segmented<Hours>
+                value={hours}
+                onChange={setHours}
+                ariaLabel="Hours window"
+                options={[{ value: "all", label: "All hours" }, { value: "working", label: "Peak hours only" }]}
               />
             </div>
             </div>

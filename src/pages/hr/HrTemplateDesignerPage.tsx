@@ -32,6 +32,7 @@ import {
   reorderHrFields,
   addHrSection,
   updateHrSection,
+  setHrSectionClientVisible,
   deleteHrSection,
   reorderHrSections,
   archiveHrTemplate,
@@ -40,10 +41,12 @@ import {
   type HrTemplateDetail,
   type HrTemplateField,
   type HrTemplateSection,
+  type HrTemplatePeriodKind,
   type HrFieldType,
   type HrGridColumn,
   type HrGridColumnType,
 } from "../../services/hr";
+import { getMetricCatalog, type MetricCatalogEntry } from "../../services/opsReports";
 
 // Template designer — sections and their fields.
 //
@@ -93,7 +96,9 @@ export default function HrTemplateDesignerPage() {
     if (!Number.isFinite(tid)) return;
     try {
       setLoading(true);
-      const { data, etag: newEtag } = await getHrTemplate(tid);
+      // The designer is the one place retired sections must still be visible —
+      // otherwise there is no way to bring one back.
+      const { data, etag: newEtag } = await getHrTemplate(tid, true);
       setTemplate(data);
       setEtag(newEtag);
       setError(null);
@@ -104,6 +109,17 @@ export default function HrTemplateDesignerPage() {
     }
   }
   useEffect(() => { reload(); /* eslint-disable-next-line */ }, [tid]);
+
+  // Operations templates (project-scoped) bind fields to a data-source catalog.
+  // Fetch it only when this is a project-scoped template; HR/QA never see it.
+  const [metricCatalog, setMetricCatalog] = useState<MetricCatalogEntry[]>([]);
+  useEffect(() => {
+    if (template?.projectId != null) {
+      getMetricCatalog().then(setMetricCatalog).catch(() => setMetricCatalog([]));
+    } else {
+      setMetricCatalog([]);
+    }
+  }, [template?.projectId]);
 
   // ── Derived data ────────────────────────────────────────────────────────
   // Detail surfaces exclude creation-placement fields — those live in their
@@ -151,6 +167,8 @@ export default function HrTemplateDesignerPage() {
     description?: string | null;
     icon?: string | null;
     titleLabel?: string;
+    // "none" clears the reporting-period config; omit = unchanged.
+    periodKind?: HrTemplatePeriodKind | "none";
   }) {
     if (!template) return;
     try {
@@ -160,10 +178,20 @@ export default function HrTemplateDesignerPage() {
         description: patch.description !== undefined ? patch.description : template.description,
         icon:        patch.icon        !== undefined ? patch.icon        : template.icon,
         titleLabel:  patch.titleLabel  ?? template.titleLabel,
+        ...(patch.periodKind !== undefined ? { periodKind: patch.periodKind } : {}),
       };
       const { etag: newEtag } = await updateHrTemplate(template.id, body, etag);
       setEtag(newEtag);
-      setTemplate({ ...template, ...body });
+      setTemplate({
+        ...template,
+        name: body.name,
+        description: body.description,
+        icon: body.icon,
+        titleLabel: body.titleLabel,
+        ...(patch.periodKind !== undefined
+          ? { periodKind: patch.periodKind === "none" ? null : patch.periodKind }
+          : {}),
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Save failed");
     } finally {
@@ -186,7 +214,9 @@ export default function HrTemplateDesignerPage() {
         isRequired: false,
         showOnCreate: false,
         placement: "detail",
-        allowsNa: false,
+        // N/A is available on every HR checklist field by default (Amir
+        // 2026-06-14). Admins can still turn it off per-field via the toggle.
+        allowsNa: true,
         options: null,
         sortOrder: nextSortOrder,
       });
@@ -232,6 +262,7 @@ export default function HrTemplateDesignerPage() {
         showOnCreate: patch.showOnCreate ?? field.showOnCreate,
         placement:    patch.placement    ?? field.placement,
         allowsNa:     patch.allowsNa     ?? field.allowsNa,
+        sourceKey:    patch.sourceKey    !== undefined ? patch.sourceKey : field.sourceKey,
         options:      nextOptions,
       });
       // An options-only edit (the grid column editor reordering/adding/typing a
@@ -303,10 +334,31 @@ export default function HrTemplateDesignerPage() {
   async function renameSection(section: HrTemplateSection, name: string) {
     if (!name.trim() || name === section.name) return;
     try {
-      await updateHrSection(section.id, name.trim());
+      // Pass the existing description through — the PUT replaces it, so
+      // omitting it here would silently null a seeded section description.
+      await updateHrSection(section.id, name.trim(), section.description);
       await reload();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Rename failed");
+    }
+  }
+
+  // Flips the section's "visible live to client" flag via the dedicated
+  // lock-bypass endpoint (mirrors handleToggleAllowsNa — works even when the
+  // template already has records, which is exactly when the client-visibility
+  // outline gets applied). Local patch, no reload flash.
+  async function handleToggleClientVisible(section: HrTemplateSection, next: boolean) {
+    if (!template) return;
+    try {
+      await setHrSectionClientVisible(section.id, next);
+      setTemplate({
+        ...template,
+        sections: template.sections.map((s) =>
+          s.id === section.id ? { ...s, clientVisible: next } : s
+        ),
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to update client visibility");
     }
   }
 
@@ -461,7 +513,10 @@ export default function HrTemplateDesignerPage() {
           section={section}
           fields={fields}
           allSections={template.sections}
+          sourceCatalog={metricCatalog}
+          showSource={template.projectId != null}
           onRenameSection={(name) => renameSection(section, name)}
+          onToggleClientVisible={(next) => handleToggleClientVisible(section, next)}
           onDeleteSection={() => setConfirmDeleteSection(section)}
           onAddField={() => handleAddField(section.id)}
           onReorderFields={(e) => handleReorderFields(fields, section.id, e)}
@@ -528,6 +583,32 @@ export default function HrTemplateDesignerPage() {
               placeholder="Add a description…"
               className="mt-2 w-full text-sm text-on-surface-variant bg-transparent border-0 focus:outline-none focus:ring-2 focus:ring-primary/20 rounded px-1 resize-none"
             />
+            {/* Reporting-period config: when set, the New-record modal asks
+                for the period (quarter / half / year / month), auto-fills the
+                title from it, blocks duplicate periods, and the records page
+                filters by period instead of created month. Not for project-
+                scoped Operations templates (they have their own month flow). */}
+            {template.projectId == null && (
+              <div className="mt-2 inline-flex items-center gap-2">
+                <span className="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/60">
+                  Reporting period
+                </span>
+                <select
+                  value={template.periodKind ?? "none"}
+                  onChange={(e) =>
+                    saveTemplateMetadata({ periodKind: e.target.value as HrTemplatePeriodKind | "none" })
+                  }
+                  className="px-2 py-1 rounded-lg bg-surface-container-high/50 border border-on-surface-variant/10 text-xs font-bold focus:outline-none focus:border-primary/30"
+                >
+                  <option value="none">None</option>
+                  <option value="month">Monthly</option>
+                  <option value="quarter">Quarterly</option>
+                  <option value="month_or_quarter">Monthly or Quarterly</option>
+                  <option value="half_or_year">Half-yearly or Yearly</option>
+                  <option value="year">Yearly</option>
+                </select>
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -623,6 +704,8 @@ export default function HrTemplateDesignerPage() {
       <DetailsBucket
         fields={detailsBucket}
         allSections={template.sections}
+        sourceCatalog={metricCatalog}
+        showSource={template.projectId != null}
         onAddField={() => handleAddField(null)}
         onReorderFields={(e) => handleReorderFields(detailsBucket, null, e)}
         onUpdateField={handleUpdateField}
@@ -990,6 +1073,8 @@ function AllowsNaToggle({
 function DetailsBucket({
   fields,
   allSections,
+  sourceCatalog,
+  showSource,
   onAddField,
   onReorderFields,
   onUpdateField,
@@ -998,6 +1083,8 @@ function DetailsBucket({
 }: {
   fields: HrTemplateField[];
   allSections: HrTemplateSection[];
+  sourceCatalog: MetricCatalogEntry[];
+  showSource: boolean;
   onAddField: () => void;
   onReorderFields: (e: DragEndEvent) => void;
   onUpdateField: (f: HrTemplateField, patch: Partial<HrTemplateField>) => void;
@@ -1039,6 +1126,8 @@ function DetailsBucket({
                   key={f.id}
                   field={f}
                   allSections={allSections}
+                  sourceCatalog={sourceCatalog}
+                  showSource={showSource}
                   onUpdate={(p) => onUpdateField(f, p)}
                   onToggleAllowsNa={(next) => onToggleAllowsNa(f, next)}
                   onDelete={() => onDeleteField(f)}
@@ -1091,7 +1180,10 @@ function SortableSection({
   section,
   fields,
   allSections,
+  sourceCatalog,
+  showSource,
   onRenameSection,
+  onToggleClientVisible,
   onDeleteSection,
   onAddField,
   onReorderFields,
@@ -1102,7 +1194,10 @@ function SortableSection({
   section: HrTemplateSection;
   fields: HrTemplateField[];
   allSections: HrTemplateSection[];
+  sourceCatalog: MetricCatalogEntry[];
+  showSource: boolean;
   onRenameSection: (name: string) => void;
+  onToggleClientVisible: (next: boolean) => void;
   onDeleteSection: () => void;
   onAddField: () => void;
   onReorderFields: (e: DragEndEvent) => void;
@@ -1154,6 +1249,28 @@ function SortableSection({
           className="flex-1 text-base font-bold text-on-surface bg-transparent border-0 focus:outline-none focus:ring-2 focus:ring-primary/20 rounded px-1 py-0.5"
         />
         <span className="text-[11px] text-on-surface-variant/50 tabular-nums">{fields.length}</span>
+        {/* Client live-visibility chip. Works even on design-locked templates
+            (dedicated lock-bypass endpoint) — that's the whole point: the
+            visibility outline is applied AFTER the report is in use. */}
+        <button
+          type="button"
+          onClick={() => onToggleClientVisible(!section.clientVisible)}
+          title={
+            section.clientVisible
+              ? "Clients can see this section live (read-only). Click to hide it from the client live view."
+              : "Hidden from clients (they only get published PDFs). Click to show this section live to clients."
+          }
+          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border transition-colors ${
+            section.clientVisible
+              ? "bg-primary/10 border-primary/25 text-primary hover:bg-primary/15"
+              : "border-dashed border-on-surface-variant/25 text-on-surface-variant/60 hover:bg-surface-container-low/60"
+          }`}
+        >
+          <span className="material-symbols-outlined text-[12px]">
+            {section.clientVisible ? "visibility" : "visibility_off"}
+          </span>
+          {section.clientVisible ? "Client: live" : "Client: PDF only"}
+        </button>
         <button
           type="button"
           onClick={onDeleteSection}
@@ -1179,6 +1296,8 @@ function SortableSection({
                   key={f.id}
                   field={f}
                   allSections={allSections}
+                  sourceCatalog={sourceCatalog}
+                  showSource={showSource}
                   onUpdate={(p) => onUpdateField(f, p)}
                   onToggleAllowsNa={(next) => onToggleAllowsNa(f, next)}
                   onDelete={() => onDeleteField(f)}
@@ -1211,12 +1330,16 @@ function SortableSection({
 function SortableFieldRow({
   field,
   allSections,
+  sourceCatalog,
+  showSource,
   onUpdate,
   onToggleAllowsNa,
   onDelete,
 }: {
   field: HrTemplateField;
   allSections: HrTemplateSection[];
+  sourceCatalog: MetricCatalogEntry[];
+  showSource: boolean;
   onUpdate: (p: Partial<HrTemplateField>) => void;
   onToggleAllowsNa: (next: boolean) => void;
   onDelete: () => void;
@@ -1309,6 +1432,26 @@ function SortableFieldRow({
           <option value="grid">Table (grid)</option>
           <option value="note">Note (read-only)</option>
         </select>
+        {/* Operations: bind this field to an auto-fill data source. When a live
+            source is selected the field renders read-only on the record page
+            and is populated from that month's data. "Planned" sources stay
+            manual until their data feed is wired. */}
+        {showSource && field.fieldType !== "note" && field.fieldType !== "grid" && (
+          <select
+            value={field.sourceKey ?? ""}
+            onChange={(e) => onUpdate({ sourceKey: e.target.value === "" ? null : e.target.value })}
+            className="px-3 py-1.5 bg-white rounded-lg border border-on-surface-variant/10 text-xs focus:outline-none focus:border-primary/30 max-w-[200px]"
+            aria-label="Auto-fill source"
+            title="Auto-fill data source (Operations)"
+          >
+            <option value="">Manual (no source)</option>
+            {sourceCatalog.map((m) => (
+              <option key={m.key} value={m.key}>
+                {m.status === "planned" ? "◦ " : ""}{m.label}
+              </option>
+            ))}
+          </select>
+        )}
         {/* "Required" is meaningless for a read-only note. "Allows N/A" is
             meaningless for notes and grids (N/A isn't rendered for them on the
             record page), so hide those controls to avoid silent no-ops. */}
@@ -1450,6 +1593,7 @@ function GridColumnsEditor({
               className={`${cellCls} font-bold`}
             >
               <option value="text">Text</option>
+              <option value="textarea">Text (multi-line)</option>
               <option value="number">Number</option>
               <option value="percent">Percent</option>
               <option value="date">Date</option>

@@ -81,6 +81,14 @@ export interface FetchIvrTrendsParams {
    *                       Skips the per-day SQL queries server-side.
    */
   granularity?: IvrGranularity;
+  /**
+   * Hours window applied to ALL series (Offered / Answered / Auto):
+   *   "all" (default) — entire day.
+   *   "working"       — peak hours only (each project's working-hours window).
+   * The 2025 comparison lane is static monthly data with no time-of-day, so it
+   * always reflects all hours regardless of this flag.
+   */
+  hours?: "all" | "working";
 }
 
 function buildQueryString(params: FetchIvrTrendsParams): string {
@@ -92,6 +100,8 @@ function buildQueryString(params: FetchIvrTrendsParams): string {
     qs.set("comparisons", params.comparisons.join(","));
   }
   if (params.granularity) qs.set("granularity", params.granularity);
+  // Only send the flag for the non-default (peak) case; "all" is the default.
+  if (params.hours === "working") qs.set("hours", "working");
   return qs.toString();
 }
 
@@ -125,6 +135,9 @@ export interface IvrExportParams {
   // Resolved logo-plate background (utils/logoPlate.ts) — matches the
   // on-screen tile. NOT the accent. PDF-only.
   projectAccent?: string;
+  // Hours window — "working" = peak hours only; else all hours. Matches the
+  // on-screen toggle so the export reflects what's shown.
+  hours?: "all" | "working";
   // Rendered chart-card PNG snapshots. PDF-only; the backend embeds them
   // unmodified. Excel ignores them.
   chartImages?: Blob[];
@@ -156,6 +169,7 @@ export async function downloadIvrTrendExport(params: IvrExportParams): Promise<v
   if (params.projectName) qs.set("projectName", params.projectName);
   if (params.projectLogo) qs.set("projectLogo", params.projectLogo);
   if (params.projectAccent) qs.set("projectAccent", params.projectAccent);
+  if (params.hours === "working") qs.set("hours", "working");
   qs.set("format", params.format);
 
   const body = new FormData();

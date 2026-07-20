@@ -18,6 +18,7 @@ import { departmentColorHex } from "../utils/departmentColor";
 import { fmt } from "../utils/fmt";
 import { pushRecentItem } from "../hooks/useRecentItems";
 import { useAuth, roleAtLeast } from "../services/auth";
+import { Can } from "../services/permissions";
 import {
   listHrTemplates,
   listHrTemplateGroups,
@@ -45,13 +46,14 @@ import { getModule, type ModuleGroupSummary } from "../services/modules";
 // enabled before any template exists), each section handles its own empty
 // state.
 
-// Placeholder report cards for HR. UI-only STUBS — no data pipeline / page
-// yet. `cadence` renders as the eyebrow label on the card. To wire one up,
-// remove its entry here and add a real `department_reports` attachment; delete
-// the whole block + its section when HR has real reports. (QA's stubs were
-// retired once the real QA templates shipped — see the Templates section.)
-const HR_STUB_REPORTS: { name: string; icon: string; cadence: string }[] = [
-  { name: "Monthly Attrition Report", icon: "trending_down", cadence: "Monthly" },
+// HR report cards. A card with a `to` is a real, wired page; the rest are
+// UI-only STUBS (no data pipeline yet). To wire a stub up, give it a `to`
+// (and build its page). Delete the whole block + section when HR has only
+// real reports. (QA's stubs were retired once real QA templates shipped.)
+// `reportCode` gates the card via the policy system (reports:view on that
+// direct HR report) — only users whose policy grants it see the card.
+const HR_STUB_REPORTS: { name: string; icon: string; cadence: string; to?: string; reportCode?: string }[] = [
+  { name: "Attrition Report", icon: "trending_down", cadence: "Monthly", to: "/department/HR/attrition", reportCode: "hr-attrition" },
   { name: "Attrition & Retention Report", icon: "groups", cadence: "Bi-annually" },
 ];
 
@@ -116,7 +118,9 @@ export default function DepartmentDetailPage() {
             .then(setTemplates)
             .catch(() => setTemplates([]));
           listHrTemplateGroups(d.code)
-            .then(setTemplateGroups)
+            // Operations monthly reports live under each PROJECT (ProjectDetailPage),
+            // not on the department page — hide that section here.
+            .then((gs) => setTemplateGroups(gs.filter((g) => g.code !== "ops-monthly-reports")))
             .catch(() => setTemplateGroups([]));
         } else {
           setTemplates([]);
@@ -150,11 +154,14 @@ export default function DepartmentDetailPage() {
   // Which section the New-template modal will create into. Set when the modal
   // is opened from a section's "New template" button.
   const [newTemplateGroup, setNewTemplateGroup] = useState<HrTemplateGroup | null>(null);
+  // Operations templates are project-scoped — the modal collects a project.
+  const [newTemplateProjectId, setNewTemplateProjectId] = useState<number | null>(null);
 
   function openNewTemplate(group: HrTemplateGroup) {
     setNewTemplateName("");
     setNewTemplateError(null);
     setNewTemplateGroup(group);
+    setNewTemplateProjectId(null);
     setShowNewTemplate(true);
   }
 
@@ -180,6 +187,8 @@ export default function DepartmentDetailPage() {
         // Create into the section whose button was clicked (defaults to 'hr'
         // server-side if somehow null).
         groupId: newTemplateGroup?.id ?? null,
+        // Operations templates are scoped to one project; HR/QA stay null.
+        projectId: deptCode.toUpperCase() === "OPS" ? newTemplateProjectId : null,
       });
       setShowNewTemplate(false);
       setNewTemplateName("");
@@ -430,7 +439,7 @@ export default function DepartmentDetailPage() {
           // single check is sufficient for every section.
           const canManage = isAdmin;
 
-          return templateGroups.map((group) => {
+          const sections = templateGroups.map((group) => {
             const groupTemplates = byGroup.get(group.code) ?? [];
             return (
               <section key={group.id} className="mb-10">
@@ -499,6 +508,15 @@ export default function DepartmentDetailPage() {
               </section>
             );
           });
+          // HR Templates are independently policy-grantable (the "HR Templates"
+          // grant) so they can be separated from other HR content like the
+          // Attrition report. Hide the whole section unless the user holds the
+          // grant. QA/OPS templates are unaffected.
+          return dept.code.toUpperCase() === "HR" ? (
+            <Can permission="reports:view" resource={[["report", "hr-templates"], ["department", "HR"]]}>
+              {sections}
+            </Can>
+          ) : sections;
         })()}
 
         {/* ── HR placeholder reports — UI-only stubs, not wired to data yet. ── */}
@@ -508,36 +526,55 @@ export default function DepartmentDetailPage() {
               Reports
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {HR_STUB_REPORTS.map((r) => (
-                <div
-                  key={r.name}
-                  aria-disabled="true"
-                  title="Coming soon"
-                  className="prism-surface relative rounded-2xl p-6 overflow-hidden cursor-default select-none"
-                >
-                  <div className="relative">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="w-12 h-12 bg-surface-container-high rounded-xl flex items-center justify-center text-on-surface-variant/70">
-                        <span className="material-symbols-outlined text-[22px]">
-                          {r.icon}
+              {HR_STUB_REPORTS.map((r) =>
+                r.to ? (
+                  <Can
+                    key={r.name}
+                    permission="reports:view"
+                    resource={[["report", r.reportCode ?? ""], ["department", "HR"]]}
+                  >
+                    <Link
+                      to={r.to}
+                      className="group prism-surface relative rounded-2xl p-6 no-underline card-lift overflow-hidden hover:border-accent-50"
+                    >
+                      <div className="relative">
+                        <div className="w-12 h-12 bg-surface-container-high rounded-xl flex items-center justify-center mb-3 text-on-surface-variant group-hover:bg-accent group-hover:text-white transition-all duration-300">
+                          <span className="material-symbols-outlined text-[22px]">{r.icon}</span>
+                        </div>
+                        <h5 className="font-bold text-on-surface text-sm mb-1">{r.name}</h5>
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/50">
+                          {r.cadence}
+                        </p>
+                      </div>
+                    </Link>
+                  </Can>
+                ) : (
+                  <div
+                    key={r.name}
+                    aria-disabled="true"
+                    title="Coming soon"
+                    className="prism-surface relative rounded-2xl p-6 overflow-hidden cursor-default select-none"
+                  >
+                    <div className="relative">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="w-12 h-12 bg-surface-container-high rounded-xl flex items-center justify-center text-on-surface-variant/70">
+                          <span className="material-symbols-outlined text-[22px]">{r.icon}</span>
+                        </div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md bg-surface-container-high text-on-surface-variant/60">
+                          Coming soon
                         </span>
                       </div>
-                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md bg-surface-container-high text-on-surface-variant/60">
-                        Coming soon
-                      </span>
+                      <h5 className="font-bold text-on-surface text-sm mb-1">{r.name}</h5>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/50 mb-1">
+                        {r.cadence}
+                      </p>
+                      <p className="text-[11px] text-on-surface-variant/50 leading-relaxed">
+                        Planned HR report — not available yet.
+                      </p>
                     </div>
-                    <h5 className="font-bold text-on-surface text-sm mb-1">
-                      {r.name}
-                    </h5>
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/50 mb-1">
-                      {r.cadence}
-                    </p>
-                    <p className="text-[11px] text-on-surface-variant/50 leading-relaxed">
-                      Planned HR report — not available yet.
-                    </p>
                   </div>
-                </div>
-              ))}
+                ),
+              )}
             </div>
           </section>
         )}
@@ -703,6 +740,23 @@ export default function DepartmentDetailPage() {
               placeholder="e.g. Training Completion Checklist"
               className="w-full px-3 py-2.5 bg-surface-container-high/50 rounded-lg border border-on-surface-variant/10 text-sm focus:outline-none focus:border-primary/30 focus:bg-white"
             />
+            {deptCode?.toUpperCase() === "OPS" && (
+              <div className="mt-3">
+                <label className="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/60 block mb-1.5">
+                  Project
+                </label>
+                <select
+                  value={newTemplateProjectId ?? ""}
+                  onChange={(e) => setNewTemplateProjectId(e.target.value ? Number(e.target.value) : null)}
+                  className="w-full px-3 py-2.5 bg-surface-container-high/50 rounded-lg border border-on-surface-variant/10 text-sm focus:outline-none focus:border-primary/30 focus:bg-white"
+                >
+                  <option value="">— Select a project —</option>
+                  {projects.filter((p) => p.id != null).map((p) => (
+                    <option key={p.id} value={p.id}>{p.displayName}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             {newTemplateError && (
               <p className="mt-2 text-xs text-error">{newTemplateError}</p>
             )}
@@ -718,7 +772,11 @@ export default function DepartmentDetailPage() {
               <button
                 type="button"
                 onClick={createNewTemplate}
-                disabled={!newTemplateName.trim() || newTemplateBusy}
+                disabled={
+                  !newTemplateName.trim() ||
+                  newTemplateBusy ||
+                  (deptCode?.toUpperCase() === "OPS" && !newTemplateProjectId)
+                }
                 className="btn-brand px-4 py-2 rounded-xl text-xs font-bold disabled:opacity-50"
               >
                 {newTemplateBusy ? "Creating…" : "Create & design"}

@@ -355,7 +355,7 @@ export default function ReportViewPage() {
 
   // Chart & summary
   const [chartData, setChartData] = useState<ChartPoint[]>([]);
-  const [summary, setSummary] = useState<SummaryData>({ offered: 0, answered: 0, abandoned: 0, pca: 0 });
+  const [summary, setSummary] = useState<SummaryData>({ offered: 0, answered: 0, abandoned: 0, pca: 0, gos: 0, aht: 0 });
   const [chartMetric, setChartMetric] = useState<"Answered" | "Abandoned">("Answered");
 
   // Fetch-failure surface. Either effect populates this on throw so a 200-OK
@@ -747,7 +747,7 @@ export default function ReportViewPage() {
         </div>
 
         {/* ── Widgets ── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <div className="prism-surface rounded-2xl p-6 flex items-center gap-5">
             <div
               className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0"
@@ -777,6 +777,38 @@ export default function ReportViewPage() {
               </p>
               <p className="text-2xl font-black text-on-surface tracking-tight">
                 {fmt.dec(summary.pca, 1)}%
+              </p>
+            </div>
+          </div>
+          <div className="prism-surface rounded-2xl p-6 flex items-center gap-5">
+            <div
+              className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0"
+              style={{ backgroundColor: `${accent.color}10`, color: accent.color }}
+            >
+              <span className="material-symbols-outlined text-2xl">bolt</span>
+            </div>
+            <div>
+              <p className="eyebrow-sm text-on-surface-variant/50 mb-1">
+                GOS
+              </p>
+              <p className="text-2xl font-black text-on-surface tracking-tight">
+                {fmt.dec(summary.gos, 1)}%
+              </p>
+            </div>
+          </div>
+          <div className="prism-surface rounded-2xl p-6 flex items-center gap-5">
+            <div
+              className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0"
+              style={{ backgroundColor: `${accent.color}10`, color: accent.color }}
+            >
+              <span className="material-symbols-outlined text-2xl">timer</span>
+            </div>
+            <div>
+              <p className="eyebrow-sm text-on-surface-variant/50 mb-1">
+                AHT
+              </p>
+              <p className="text-2xl font-black text-on-surface tracking-tight">
+                {formatSecondsAsMmSs(summary.aht)}
               </p>
             </div>
           </div>

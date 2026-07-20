@@ -13,11 +13,13 @@ import PendingApprovalPage from "./pages/PendingApprovalPage";
 import DashboardPage from "./pages/DashboardPage";
 import DepartmentDetailPage from "./pages/DepartmentDetailPage";
 import HrTemplateRecordsPage from "./pages/hr/HrTemplateRecordsPage";
+import AttritionReportPage from "./pages/hr/AttritionReportPage";
 import HrTemplateDesignerPage from "./pages/hr/HrTemplateDesignerPage";
 import HrRecordDetailPage from "./pages/hr/HrRecordDetailPage";
 import ProjectDetailPage from "./pages/ProjectDetailPage";
 import ReportViewPage from "./pages/ReportViewPage";
 import AbandonedWithin5sReportPage from "./pages/AbandonedWithin5sReportPage";
+import ChannelReportPage from "./pages/ChannelReportPage";
 import BillingRawDataPage from "./pages/BillingRawDataPage";
 import IvrTrendComparisonPreviewPage from "./pages/IvrTrendComparisonPreviewPage";
 import RepeatCallersPreviewPage from "./pages/RepeatCallersPreviewPage";
@@ -167,6 +169,13 @@ export default function App() {
             element={<ProtectedRoute><ReportViewPage /></ProtectedRoute>}
           />
 
+          {/* HR Attrition Report — bespoke 3-table year view (not a generic
+              SQL report; its own page + /api/Attrition backend). */}
+          <Route
+            path="/department/:deptCode/attrition"
+            element={<ProtectedRoute><AttritionReportPage /></ProtectedRoute>}
+          />
+
           {/* ── Abandoned Calls Within 5 Seconds of Reaching Queue ──
                 Dedicated page (no pie, 4-col table, hourly/daily/monthly/
                 yearly). Two URL shapes mirror the generic report routes;
@@ -180,6 +189,28 @@ export default function App() {
           <Route
             path="/department/:deptCode/project/:projectCode/report/abandoned-within-5s"
             element={<ProtectedRoute><AbandonedWithin5sReportPage /></ProtectedRoute>}
+          />
+
+          {/* ── Digital-channel reports (Email; Chats/Facebook/Walk-Ins) ──
+                Per-project interactive reports fed from the scraped CRM tables.
+                Email is its own report; "digital-channels" stacks Chats +
+                Facebook + Walk-Ins. Two URL shapes each (dept-direct +
+                project-scoped); same static-segment-wins pattern as above. */}
+          <Route
+            path="/department/:deptCode/report/email"
+            element={<ProtectedRoute><ChannelReportPage reportKind="email" /></ProtectedRoute>}
+          />
+          <Route
+            path="/department/:deptCode/project/:projectCode/report/email"
+            element={<ProtectedRoute><ChannelReportPage reportKind="email" /></ProtectedRoute>}
+          />
+          <Route
+            path="/department/:deptCode/report/digital-channels"
+            element={<ProtectedRoute><ChannelReportPage reportKind="digital" /></ProtectedRoute>}
+          />
+          <Route
+            path="/department/:deptCode/project/:projectCode/report/digital-channels"
+            element={<ProtectedRoute><ChannelReportPage reportKind="digital" /></ProtectedRoute>}
           />
 
           {/* ── Billing → Raw Data ──
